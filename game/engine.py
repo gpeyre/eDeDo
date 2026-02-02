@@ -143,7 +143,6 @@ class GameEngine:
         ]
 
         # Créer la porte (position random en haut, initialement inactive)
-        import random
         door_x = random.randint(
             cfg.WALL_THICKNESS + 20,
             cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 100
