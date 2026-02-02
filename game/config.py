@@ -121,7 +121,7 @@ class Config:
     MISSILE_COLOR = (255, 255, 50)  # Jaune vif
 
     # Missile chargé
-    CHARGED_MISSILE_COST = 75  # 75% de l'énergie
+    CHARGED_MISSILE_COST = 50  # 50% de l'énergie (ou tout si < 50%)
     CHARGED_MISSILE_CHARGE_TIME = 90  # 1.5 secondes à 60 FPS
     CHARGED_MISSILE_WIDTH = 60  # Beaucoup plus grand!
     CHARGED_MISSILE_HEIGHT = 35  # Beaucoup plus grand!

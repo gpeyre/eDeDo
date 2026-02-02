@@ -103,12 +103,13 @@ class Renderer:
         pygame.draw.circle(self.screen, (255, 255, 255), (left_eye_x, eye_y), int(eye_radius * 1.2))
         pygame.draw.circle(self.screen, (255, 255, 255), (right_eye_x, eye_y), int(eye_radius * 1.2))
 
-        # Pupilles (noires)
-        pupil_offset = ball.radius * 0.08 * ball.facing_direction
+        # Pupilles (noires) - bougent selon la direction de visée
+        pupil_offset_x = ball.radius * 0.08 * ball.facing_direction
+        pupil_offset_y = ball.radius * 0.08 * ball.aim_direction_y
         pygame.draw.circle(self.screen, (0, 0, 0),
-                          (int(left_eye_x + pupil_offset), eye_y), int(eye_radius * 0.6))
+                          (int(left_eye_x + pupil_offset_x), int(eye_y + pupil_offset_y)), int(eye_radius * 0.6))
         pygame.draw.circle(self.screen, (0, 0, 0),
-                          (int(right_eye_x + pupil_offset), eye_y), int(eye_radius * 0.6))
+                          (int(right_eye_x + pupil_offset_x), int(eye_y + pupil_offset_y)), int(eye_radius * 0.6))
 
     def draw_obstacle(self, obstacle: Obstacle):
         """Dessine un obstacle."""
@@ -728,3 +729,56 @@ class Renderer:
                 center=(cfg.WINDOW_WIDTH // 2, 450 + i * 35)
             )
             self.screen.blit(instr, instr_rect)
+
+    def draw_highscores(self, highscores: list, current_score: int):
+        """
+        Dessine l'écran des meilleurs scores.
+
+        Args:
+            highscores: Liste des meilleurs scores triés
+            current_score: Score de la partie qui vient de se terminer
+        """
+        cfg = self.config
+
+        # Fond
+        self.screen.fill(cfg.COLOR_MENU_BACKGROUND)
+
+        # Titre
+        title_font = pygame.font.Font(None, 72)
+        title = title_font.render("MEILLEURS SCORES", True, cfg.COLOR_MENU_TEXT)
+        title_rect = title.get_rect(center=(cfg.WINDOW_WIDTH // 2, 80))
+        self.screen.blit(title, title_rect)
+
+        # Score actuel
+        score_font = pygame.font.Font(None, 48)
+        current_text = score_font.render(
+            f"Votre score : {current_score} ennemis",
+            True,
+            cfg.COLOR_MENU_HIGHLIGHT
+        )
+        current_rect = current_text.get_rect(center=(cfg.WINDOW_WIDTH // 2, 150))
+        self.screen.blit(current_text, current_rect)
+
+        # Liste des highscores
+        list_font = pygame.font.Font(None, 36)
+        start_y = 220
+        spacing = 40
+
+        for i, score in enumerate(highscores[:10]):
+            # Couleur différente si c'est le score actuel
+            if score == current_score and i < 10:
+                color = cfg.COLOR_MENU_HIGHLIGHT
+                text = f"{i+1}. {score} ennemis  ← NOUVEAU!"
+            else:
+                color = cfg.COLOR_MENU_TEXT
+                text = f"{i+1}. {score} ennemis"
+
+            score_text = list_font.render(text, True, color)
+            score_rect = score_text.get_rect(center=(cfg.WINDOW_WIDTH // 2, start_y + i * spacing))
+            self.screen.blit(score_text, score_rect)
+
+        # Instructions
+        instr_font = pygame.font.Font(None, 28)
+        instr = instr_font.render("Appuyez sur un bouton pour continuer...", True, (150, 150, 150))
+        instr_rect = instr.get_rect(center=(cfg.WINDOW_WIDTH // 2, 550))
+        self.screen.blit(instr, instr_rect)

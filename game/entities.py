@@ -34,6 +34,7 @@ class Ball:
     energy_usage_timer: int = 0  # Timer depuis dernière utilisation d'énergie
     speed_multiplier: float = 1.0  # Multiplicateur de vitesse (varie selon le personnage)
     jump_multiplier: float = 1.0  # Multiplicateur de force de saut (varie selon le personnage)
+    aim_direction_y: int = 0  # Direction de visée verticale: -1 = haut, 0 = horizontal, 1 = bas
 
     def can_jump(self) -> bool:
         """Vérifie si la boule peut sauter."""
@@ -471,6 +472,7 @@ class Missile:
     height: float = Config.MISSILE_HEIGHT
     speed: float = Config.MISSILE_SPEED
     direction: int = 1  # 1 = droite, -1 = gauche
+    direction_y: int = 0  # -1 = haut, 0 = horizontal, 1 = bas
     color: tuple = field(default_factory=lambda: Config.MISSILE_COLOR)
     active: bool = True
     charged: bool = False  # Missile chargé ou non
@@ -478,6 +480,8 @@ class Missile:
     def update(self, config: Config):
         """Met à jour la position du missile."""
         self.x += self.speed * self.direction
+        if self.direction_y != 0:
+            self.y += self.speed * self.direction_y
 
         # Les missiles chargés traversent les murs, les normaux non
         if not self.charged:

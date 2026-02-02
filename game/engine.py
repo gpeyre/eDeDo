@@ -22,6 +22,7 @@ class GameState(Enum):
     PLAYING = auto()
     PAUSED = auto()
     GAME_OVER = auto()
+    HIGHSCORES = auto()
 
 
 class GameEngine:
@@ -56,6 +57,8 @@ class GameEngine:
         self.enemies_defeated = 0  # Compteur d'ennemis vaincus
         self.door = None  # La porte vers le prochain niveau
         self.current_level = 1  # Niveau actuel
+        self.highscores = self._load_highscores()  # Liste des meilleurs scores
+        self.current_score = 0  # Score de la partie en cours
         self.menu_input_cooldown = 0  # Cooldown pour éviter la sensibilité excessive au menu
 
     def init(self):
@@ -194,8 +197,11 @@ class GameEngine:
                 elif self.state == GameState.GAME_OVER:
                     # N'importe quel bouton après les 2 premières secondes
                     if self.game_over_timer >= 120:
-                        self.state = GameState.MENU
+                        self.state = GameState.HIGHSCORES
                         self.game_over_timer = 0
+                elif self.state == GameState.HIGHSCORES:
+                    # N'importe quel bouton retourne au menu
+                    self.state = GameState.MENU
                 elif self.state == GameState.MENU:
                     if event.button == 0:  # A = sélectionner
                         self._handle_menu_keydown(pygame.K_RETURN)
@@ -274,7 +280,7 @@ class GameEngine:
         if key == pygame.K_ESCAPE:
             self.state = GameState.PAUSED  # ESC met en pause maintenant
             self.pause_menu_index = 0
-        elif key == pygame.K_UP:
+        elif key == pygame.K_z or key == pygame.K_k:
             # Vérifier si un saut est possible et quel type
             can_jump = self.ball.can_jump()
             will_be_double = self.ball.is_double_jump()
@@ -305,7 +311,7 @@ class GameEngine:
         self.current_level = 1  # Reset le niveau
         self.state = GameState.PLAYING
 
-    def _fire_missile(self, direction: int):
+    def _fire_missile(self, direction: int, direction_y: int = 0):
         """Tire un missile dans la direction donnée."""
         # Vérifier si assez d'énergie
         if self.ball.energy < self.config.MISSILE_ENERGY_COST:
@@ -317,31 +323,44 @@ class GameEngine:
 
         # Position de départ du missile (à côté de la boule)
         offset_x = (self.ball.radius + self.config.MISSILE_WIDTH / 2) * direction
+        offset_y = 0
+        if direction_y != 0:
+            offset_y = (self.ball.radius + self.config.MISSILE_HEIGHT / 2) * direction_y
+
         missile = Missile(
             x=self.ball.x + offset_x,
-            y=self.ball.y - self.config.MISSILE_HEIGHT / 2,
+            y=self.ball.y + offset_y - self.config.MISSILE_HEIGHT / 2,
             direction=direction,
+            direction_y=direction_y,
             charged=False
         )
         self.missiles.append(missile)
 
-    def _fire_charged_missile(self, direction: int):
+    def _fire_charged_missile(self, direction: int, direction_y: int = 0):
         """Tire un missile chargé."""
         # Consommer l'énergie au moment du tir (pas pendant la charge)
-        if self.ball.energy < self.config.CHARGED_MISSILE_COST:
-            return  # Pas assez d'énergie
-        self.ball.energy -= self.config.CHARGED_MISSILE_COST
+        # Si énergie >= 50%, coûte 50%. Sinon, consomme toute l'énergie restante
+        if self.ball.energy >= self.config.CHARGED_MISSILE_COST:
+            self.ball.energy -= self.config.CHARGED_MISSILE_COST
+        else:
+            # Si moins de 50%, vide toute l'énergie
+            self.ball.energy = 0
         self.ball.energy_usage_timer = 0  # Reset le timer
 
         # Position de départ du missile chargé
         offset_x = (self.ball.radius + self.config.CHARGED_MISSILE_WIDTH / 2) * direction
+        offset_y = 0
+        if direction_y != 0:
+            offset_y = (self.ball.radius + self.config.CHARGED_MISSILE_HEIGHT / 2) * direction_y
+
         missile = Missile(
             x=self.ball.x + offset_x,
-            y=self.ball.y - self.config.CHARGED_MISSILE_HEIGHT / 2,
+            y=self.ball.y + offset_y - self.config.CHARGED_MISSILE_HEIGHT / 2,
             width=self.config.CHARGED_MISSILE_WIDTH,
             height=self.config.CHARGED_MISSILE_HEIGHT,
             speed=self.config.CHARGED_MISSILE_SPEED,
             direction=direction,
+            direction_y=direction_y,
             color=self.config.CHARGED_MISSILE_COLOR,
             charged=True
         )
@@ -355,16 +374,24 @@ class GameEngine:
         # Gestion manette
         joy_left = False
         joy_right = False
+        joy_up = False
+        joy_down = False
         joy_float = False
         joy_fire = False
 
         if self.joystick:
-            # Stick analogique gauche (axe 0 = horizontal)
+            # Stick analogique gauche (axe 0 = horizontal, axe 1 = vertical)
             axis_x = self.joystick.get_axis(0)
+            axis_y = self.joystick.get_axis(1)
             if axis_x < -0.3:  # Seuil de déclenchement
                 joy_left = True
             elif axis_x > 0.3:
                 joy_right = True
+
+            if axis_y < -0.3:  # Stick vers le haut
+                joy_up = True
+            elif axis_y > 0.3:  # Stick vers le bas
+                joy_down = True
 
             # D-pad (chapeau)
             if self.joystick.get_numhats() > 0:
@@ -373,12 +400,24 @@ class GameEngine:
                     joy_left = True
                 elif hat[0] > 0:
                     joy_right = True
+                if hat[1] > 0:  # D-pad haut
+                    joy_up = True
+                elif hat[1] < 0:  # D-pad bas
+                    joy_down = True
 
             # Boutons : A (0) = saut, B (1) = float, X (2) = tir
             if self.joystick.get_button(1):  # B
                 joy_float = True
             if self.joystick.get_button(2):  # X
                 joy_fire = True
+
+        # Direction de visée verticale
+        if keys[pygame.K_UP] or keys[pygame.K_w] or joy_up:
+            self.ball.aim_direction_y = -1  # Viser vers le haut
+        elif keys[pygame.K_DOWN] or keys[pygame.K_s] or joy_down:
+            self.ball.aim_direction_y = 1  # Viser vers le bas
+        else:
+            self.ball.aim_direction_y = 0  # Viser horizontalement
 
         # Mouvement
         if keys[pygame.K_LEFT] or keys[pygame.K_a] or joy_left:
@@ -401,13 +440,13 @@ class GameEngine:
             # Sinon, tir automatique rapide
             elif not self.missile_charging and self.space_key_hold_timer < 30:
                 if self.fire_cooldown <= 0:
-                    self._fire_missile(self.ball.facing_direction)
+                    self._fire_missile(self.ball.facing_direction, self.ball.aim_direction_y)
                     self.fire_cooldown = 15
         else:
             # F relâché
             if self.missile_charging and self.missile_charge_timer >= self.config.CHARGED_MISSILE_CHARGE_TIME:
                 # Tirer le missile chargé
-                self._fire_charged_missile(self.ball.facing_direction)
+                self._fire_charged_missile(self.ball.facing_direction, self.ball.aim_direction_y)
             self.missile_charging = False
             self.missile_charge_timer = 0
             self.space_key_hold_timer = 0
@@ -440,6 +479,9 @@ class GameEngine:
         if self.ball.lives <= 0:
             self.state = GameState.GAME_OVER
             self.game_over_timer = 0
+            # Sauvegarder le score
+            self.current_score = self.enemies_defeated
+            self._add_score(self.current_score)
             # Son de mort (réutiliser le son de perte de vie mais plus grave)
             self.audio.play(SoundType.LIFE_LOST, 1.0)
             # Grande explosion de particules
@@ -930,6 +972,44 @@ class GameEngine:
         )
         pygame.display.flip()
 
+    def _load_highscores(self):
+        """Charge les meilleurs scores depuis un fichier."""
+        import json
+        import os
+
+        score_file = os.path.join(os.path.expanduser("~"), ".ededo_scores.json")
+        try:
+            if os.path.exists(score_file):
+                with open(score_file, 'r') as f:
+                    scores = json.load(f)
+                    return sorted(scores, reverse=True)[:10]  # Top 10
+        except:
+            pass
+        return []
+
+    def _save_highscores(self):
+        """Sauvegarde les meilleurs scores dans un fichier."""
+        import json
+        import os
+
+        score_file = os.path.join(os.path.expanduser("~"), ".ededo_scores.json")
+        try:
+            with open(score_file, 'w') as f:
+                json.dump(self.highscores, f)
+        except:
+            pass
+
+    def _add_score(self, score: int):
+        """Ajoute un score à la liste des highscores."""
+        self.highscores.append(score)
+        self.highscores = sorted(self.highscores, reverse=True)[:10]  # Garder top 10
+        self._save_highscores()
+
+    def render_highscores(self):
+        """Dessine l'écran des high scores."""
+        self.renderer.draw_highscores(self.highscores, self.current_score)
+        pygame.display.flip()
+
     def run(self):
         """Lance la boucle de jeu principale."""
         self.init()
@@ -947,6 +1027,8 @@ class GameEngine:
             elif self.state == GameState.GAME_OVER:
                 self.update()  # Continue l'animation
                 self.render_game_over()
+            elif self.state == GameState.HIGHSCORES:
+                self.render_highscores()
             else:
                 self.handle_input()
                 self.update()
