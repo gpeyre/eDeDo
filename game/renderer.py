@@ -111,47 +111,16 @@ class Renderer:
                           (int(right_eye_x + pupil_offset), eye_y), int(eye_radius * 0.6))
 
     def draw_obstacle(self, obstacle: Obstacle):
-        """Dessine un obstacle avec style hachuré."""
+        """Dessine un obstacle."""
         x, y, w, h = int(obstacle.x), int(obstacle.y), obstacle.width, obstacle.height
 
-        # Remplir le fond avec la couleur de base
+        # Remplir avec la couleur de base (marron selon le type)
         pygame.draw.rect(self.screen, obstacle.color, (x, y, w, h))
 
-        # Déterminer les couleurs de hachures selon le type
-        if isinstance(obstacle, MovingPlatform):
-            # Plateformes mobiles: hachures diagonales
-            if obstacle.speed > 2.0:  # Rapide
-                hatch_color1 = (255, 255, 100)  # Jaune vif
-                hatch_color2 = (255, 150, 0)    # Orange foncé
-            else:  # Lente
-                hatch_color1 = (200, 255, 200)  # Vert clair
-                hatch_color2 = (50, 200, 50)    # Vert foncé
-        else:
-            # Plateformes statiques: hachures différentes
-            hatch_color1 = (255, 200, 255)  # Rose clair
-            hatch_color2 = (200, 50, 200)   # Magenta foncé
-
-        # Dessiner les hachures diagonales
-        spacing = 8
-        for i in range(-h, w, spacing):
-            # Première série de lignes diagonales
-            start_x = x + i
-            start_y = y
-            end_x = x + i + h
-            end_y = y + h
-            pygame.draw.line(self.screen, hatch_color1, (start_x, start_y), (end_x, end_y), 2)
-
-            # Deuxième série (inverse) pour créer un motif croisé
-            if isinstance(obstacle, MovingPlatform):
-                start_x2 = x + i
-                start_y2 = y + h
-                end_x2 = x + i + h
-                end_y2 = y
-                pygame.draw.line(self.screen, hatch_color2, (start_x2, start_y2), (end_x2, end_y2), 1)
-
-        # Bordure épaisse contrastée
-        border_color = (255, 255, 255)  # Blanc pour toutes
-        pygame.draw.rect(self.screen, border_color, (x, y, w, h), 3)
+        # Bordure plus foncée
+        r, g, b = obstacle.color
+        border_color = (max(0, r - 30), max(0, g - 30), max(0, b - 30))
+        pygame.draw.rect(self.screen, border_color, (x, y, w, h), 2)
 
     def draw_obstacles(self, obstacles: list[Obstacle]):
         """Dessine tous les obstacles."""

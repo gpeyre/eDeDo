@@ -58,10 +58,10 @@ class Config:
     SPEED_DECAY_RATE = 0.95  # Taux de réduction quand au-dessus de la limite
     AIR_CONTROL_FACTOR = 0.6  # Facteur de contrôle dans les airs (60% du contrôle au sol)
 
-    # Plateformes - couleurs vives
-    COLOR_PLATFORM_STATIC = (255, 100, 255)  # Magenta vif
-    COLOR_PLATFORM_SLOW = (100, 255, 100)    # Vert vif
-    COLOR_PLATFORM_FAST = (255, 200, 50)     # Orange/jaune vif
+    # Plateformes - couleurs marron
+    COLOR_PLATFORM_STATIC = (101, 67, 33)   # Marron foncé
+    COLOR_PLATFORM_SLOW = (139, 90, 43)     # Marron moyen
+    COLOR_PLATFORM_FAST = (205, 133, 63)    # Marron clair
     MOVING_PLATFORM_SPEED_SLOW = 1.0
     MOVING_PLATFORM_SPEED_FAST = 3.5
 
