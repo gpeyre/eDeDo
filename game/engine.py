@@ -182,7 +182,7 @@ class GameEngine:
                     self.state = GameState.MENU
                 elif self.state == GameState.PLAYING:
                     if event.button == 0:  # Bouton A = saut
-                        self._handle_game_keydown(pygame.K_UP)
+                        self._handle_game_keydown(pygame.K_z)
                     elif event.button == 7:  # Bouton Start = pause
                         self.state = GameState.PAUSED
                         self.pause_menu_index = 0
