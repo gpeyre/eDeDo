@@ -706,6 +706,16 @@ class Renderer:
             name_rect = name_text.get_rect(center=(ball_x, ball_y + ball_radius + 25))
             self.screen.blit(name_text, name_rect)
 
+            # Stats du personnage
+            stats_font = pygame.font.Font(None, 20)
+            max_lives, speed_mult, jump_mult = cfg.PLAYER_STATS[i]
+            stats_text = stats_font.render(
+                f"{max_lives} PV | Vit: {int(speed_mult*100)}% | Saut: {int(jump_mult*100)}%",
+                True, (150, 150, 150)
+            )
+            stats_rect = stats_text.get_rect(center=(ball_x, ball_y + ball_radius + 50))
+            self.screen.blit(stats_text, stats_rect)
+
         # Instructions
         instr_font = pygame.font.Font(None, 28)
         instructions = [
