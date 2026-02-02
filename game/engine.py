@@ -475,12 +475,14 @@ class GameEngine:
             if not missile.active:
                 continue
 
-            # Si missile chargé, vérifier explosion de zone
+            # Si missile chargé, vérifier explosion de zone (ne se détruit PAS au contact d'ennemis)
             if missile.charged:
                 explosion_x = missile.x + missile.width / 2
                 explosion_y = missile.y + missile.height / 2
+
+                # Le missile chargé traverse les ennemis et les détruit sans se faire détruire
                 for ai_ball in self.ai_balls[:]:
-                    # Distance entre missile et ennemi
+                    # Distance entre missile et ennemi pour explosion de zone
                     dist_x = ai_ball.x - explosion_x
                     dist_y = ai_ball.y - explosion_y
                     distance = (dist_x * dist_x + dist_y * dist_y) ** 0.5
@@ -492,15 +494,11 @@ class GameEngine:
                                 ai_ball.x, ai_ball.y, ai_ball.color
                             )
 
-                # Si collision directe avec missile chargé, le détruire
-                for ai_ball in self.ai_balls[:]:
+                    # Si collision directe, créer une explosion MAIS ne pas détruire le missile chargé
                     if missile.check_collision(ai_ball.x, ai_ball.y, ai_ball.radius):
-                        if missile not in missiles_to_remove:
-                            missiles_to_remove.append(missile)
-                        # Grande explosion
+                        # Grande explosion mais le missile continue !
                         self.particles.spawn_explosion(explosion_x, explosion_y, 3.0)
                         self.audio.play(SoundType.BALL_COLLISION, 1.0)
-                        break
             else:
                 # Missile normal - réduit les HP
                 for ai_ball in self.ai_balls[:]:
@@ -599,18 +597,22 @@ class GameEngine:
         # Retirer les bulles inactives
         self.enemy_bullets = [b for b in self.enemy_bullets if b.active]
 
-        # Collision missiles joueur vs bulles ennemies (annulation mutuelle)
+        # Collision missiles joueur vs bulles ennemies (annulation mutuelle SAUF pour les mega tirs)
         missiles_to_remove_collision = []
         bullets_to_remove_collision = []
         for missile in self.missiles[:]:
+            # Les missiles chargés (mega tirs) ne sont PAS affectés par les bulles ennemies
+            if missile.charged:
+                continue  # Skip collision check for charged missiles
+
             for bullet in self.enemy_bullets[:]:
-                # Vérifier collision missile-bulle
+                # Vérifier collision missile-bulle (seulement pour missiles normaux)
                 dx = missile.x + missile.width / 2 - bullet.x
                 dy = missile.y + missile.height / 2 - bullet.y
                 distance = (dx * dx + dy * dy) ** 0.5
 
                 if distance < bullet.radius + max(missile.width, missile.height) / 2:
-                    # Collision ! Détruire les deux
+                    # Collision ! Détruire les deux (missile normal et bulle)
                     if missile not in missiles_to_remove_collision:
                         missiles_to_remove_collision.append(missile)
                     if bullet not in bullets_to_remove_collision:
