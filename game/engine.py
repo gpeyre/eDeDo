@@ -88,14 +88,15 @@ class GameEngine:
 
         # Position initiale de la boule (tout en haut, tombe) avec couleur et stats sélectionnées
         selected_color = cfg.PLAYER_BALL_COLORS[self.selected_color_index]
-        max_lives, speed_mult = cfg.PLAYER_STATS[self.selected_color_index]
+        max_lives, speed_mult, jump_mult = cfg.PLAYER_STATS[self.selected_color_index]
         self.ball = Ball(
             x=cfg.WINDOW_WIDTH // 2,
             y=cfg.WALL_THICKNESS + cfg.BALL_RADIUS + 5,
             color=selected_color,
             lives=max_lives,
             max_lives=max_lives,
-            speed_multiplier=speed_mult
+            speed_multiplier=speed_mult,
+            jump_multiplier=jump_mult
         )
 
         # Générer obstacles aléatoirement

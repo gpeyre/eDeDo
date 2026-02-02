@@ -101,12 +101,12 @@ class Config:
         (100, 255, 100),  # Vert
         (255, 50, 200),   # Fushia
     ]
-    PLAYER_BALL_NAMES = ["Flash", "Rebond", "Tank"]
-    # Stats des personnages : (max_lives, speed_multiplier)
+    PLAYER_BALL_NAMES = ["Flash", "Medium", "Tank"]
+    # Stats des personnages : (max_lives, speed_multiplier, jump_multiplier)
     PLAYER_STATS = [
-        (4, 1.3),  # Flash: 4 vies, rapide (130%)
-        (5, 1.0),  # Rebond: 5 vies, vitesse normale
-        (6, 0.75), # Tank: 6 vies, lent (75%)
+        (4, 1.5, 1.2),   # Flash: 4 vies, très rapide (150%), saute plus haut (120%)
+        (5, 1.0, 1.0),   # Medium: 5 vies, vitesse normale, saut normal
+        (6, 0.7, 0.8),   # Tank: 6 vies, plus lent (70%), saute moins haut (80%)
     ]
 
     # Menu de bienvenue

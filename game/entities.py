@@ -33,6 +33,7 @@ class Ball:
     invincible_timer: int = 0  # Timer d'invincibilité après hit
     energy_usage_timer: int = 0  # Timer depuis dernière utilisation d'énergie
     speed_multiplier: float = 1.0  # Multiplicateur de vitesse (varie selon le personnage)
+    jump_multiplier: float = 1.0  # Multiplicateur de force de saut (varie selon le personnage)
 
     def can_jump(self) -> bool:
         """Vérifie si la boule peut sauter."""
@@ -81,7 +82,7 @@ class Ball:
                 else:
                     return False  # Pas assez d'énergie
 
-            self.vy = force
+            self.vy = force * self.jump_multiplier
             self.jumps_remaining -= 1
             self.on_ground = False
 
