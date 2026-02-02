@@ -17,6 +17,7 @@ from .audio import AudioManager, SoundType
 
 class GameState(Enum):
     """États possibles du jeu."""
+    WELCOME = auto()
     MENU = auto()
     PLAYING = auto()
     PAUSED = auto()
@@ -42,7 +43,7 @@ class GameEngine:
         self.heart_spawn_timer = 0
         self.game_over_timer = 0  # Timer pour animation game over
         self.audio = None
-        self.state = GameState.MENU
+        self.state = GameState.WELCOME
         self.selected_color_index = 0
         self.pause_menu_index = 0  # 0 = Reprendre, 1 = Menu
         self.spawn_timer = 0
@@ -55,6 +56,7 @@ class GameEngine:
         self.enemies_defeated = 0  # Compteur d'ennemis vaincus
         self.door = None  # La porte vers le prochain niveau
         self.current_level = 1  # Niveau actuel
+        self.menu_input_cooldown = 0  # Cooldown pour éviter la sensibilité excessive au menu
 
     def init(self):
         """Initialise Pygame et les composants du jeu."""
@@ -146,8 +148,12 @@ class GameEngine:
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
-                if self.state == GameState.MENU:
+                if self.state == GameState.WELCOME:
+                    self._handle_welcome_keydown(event.key)
+                elif self.state == GameState.MENU:
                     self._handle_menu_keydown(event.key)
+                elif self.state == GameState.PAUSED:
+                    self._handle_pause_keydown(event.key)
                 else:
                     self._handle_game_keydown(event.key)
             elif event.type == pygame.KEYUP:
@@ -156,7 +162,10 @@ class GameEngine:
                         self.ball.stop_floating()
             # Gestion manette
             elif event.type == pygame.JOYBUTTONDOWN:
-                if self.state == GameState.PLAYING:
+                if self.state == GameState.WELCOME:
+                    # N'importe quel bouton passe au menu
+                    self.state = GameState.MENU
+                elif self.state == GameState.PLAYING:
                     if event.button == 0:  # Bouton A = saut
                         self._handle_game_keydown(pygame.K_UP)
                     elif event.button == 7:  # Bouton Start = pause
@@ -198,12 +207,14 @@ class GameEngine:
                     elif event.value[1] == -1:  # D-pad bas
                         self.pause_menu_index = 1
             elif event.type == pygame.JOYAXISMOTION:
-                # Stick analogique pour menu
-                if self.state == GameState.MENU and event.axis == 0:  # Axe horizontal
+                # Stick analogique pour menu (avec cooldown pour éviter la sensibilité excessive)
+                if self.state == GameState.MENU and event.axis == 0 and self.menu_input_cooldown <= 0:  # Axe horizontal
                     if event.value < -0.5:  # Gauche
                         self._handle_menu_keydown(pygame.K_LEFT)
+                        self.menu_input_cooldown = 15  # 0.25 seconde de cooldown
                     elif event.value > 0.5:  # Droite
                         self._handle_menu_keydown(pygame.K_RIGHT)
+                        self.menu_input_cooldown = 15  # 0.25 seconde de cooldown
 
     def _handle_menu_keydown(self, key):
         """Gère les touches du menu."""
@@ -219,10 +230,30 @@ class GameEngine:
         elif key in (pygame.K_RETURN, pygame.K_SPACE):
             self._start_game()
 
+    def _handle_welcome_keydown(self, key):
+        """Gère les touches du Welcome screen."""
+        if key == pygame.K_RETURN or key == pygame.K_SPACE or key == pygame.K_ESCAPE:
+            self.state = GameState.MENU
+
+    def _handle_pause_keydown(self, key):
+        """Gère les touches du menu pause."""
+        if key == pygame.K_UP or key == pygame.K_w:
+            self.pause_menu_index = 0  # Reprendre
+        elif key == pygame.K_DOWN or key == pygame.K_s:
+            self.pause_menu_index = 1  # Menu
+        elif key == pygame.K_RETURN or key == pygame.K_SPACE:
+            if self.pause_menu_index == 0:  # Reprendre
+                self.state = GameState.PLAYING
+            else:  # Retour menu
+                self.state = GameState.MENU
+        elif key == pygame.K_ESCAPE:
+            self.state = GameState.PLAYING  # ESC pour reprendre directement
+
     def _handle_game_keydown(self, key):
         """Gère les touches du jeu."""
         if key == pygame.K_ESCAPE:
-            self.state = GameState.MENU
+            self.state = GameState.PAUSED  # ESC met en pause maintenant
+            self.pause_menu_index = 0
         elif key == pygame.K_UP:
             # Vérifier si un saut est possible et quel type
             can_jump = self.ball.can_jump()
@@ -276,13 +307,11 @@ class GameEngine:
 
     def _fire_charged_missile(self, direction: int):
         """Tire un missile chargé."""
-        # Si on n'était PAS au sol pendant la charge, consommer l'énergie maintenant
-        if not self.was_grounded_during_charge:
-            if self.ball.energy < self.config.CHARGED_MISSILE_COST:
-                return  # Pas assez d'énergie
-            self.ball.energy -= self.config.CHARGED_MISSILE_COST
-            self.ball.energy_usage_timer = 0  # Reset le timer
-        # Sinon l'énergie a déjà été consommée progressivement
+        # Consommer l'énergie au moment du tir (pas pendant la charge)
+        if self.ball.energy < self.config.CHARGED_MISSILE_COST:
+            return  # Pas assez d'énergie
+        self.ball.energy -= self.config.CHARGED_MISSILE_COST
+        self.ball.energy_usage_timer = 0  # Reset le timer
 
         # Position de départ du missile chargé
         offset_x = (self.ball.radius + self.config.CHARGED_MISSILE_WIDTH / 2) * direction
@@ -375,21 +404,10 @@ class GameEngine:
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
 
-        # Gérer la charge du missile
+        # Gérer la charge du missile (la charge elle-même ne consomme pas d'énergie)
         if self.missile_charging:
             self.missile_charge_timer += 1
-
-            # Consommer l'énergie progressivement SEULEMENT si au sol pendant la charge
-            if self.was_grounded_during_charge:
-                energy_per_frame = self.config.CHARGED_MISSILE_COST / self.config.CHARGED_MISSILE_CHARGE_TIME
-                self.ball.energy -= energy_per_frame
-                self.ball.energy_usage_timer = 0  # Reset le timer
-
-                # Arrêter la charge si plus d'énergie
-                if self.ball.energy <= 0:
-                    self.ball.energy = 0
-                    self.missile_charging = False
-                    self.missile_charge_timer = 0
+            # La charge ne consomme PAS d'énergie, seul le tir final en consommera
 
         # Mettre à jour les obstacles (plateformes mobiles)
         for obs in self.obstacles:
@@ -864,8 +882,17 @@ class GameEngine:
 
         pygame.display.flip()
 
+    def render_welcome(self):
+        """Dessine l'écran de bienvenue."""
+        self.renderer.draw_welcome()
+        pygame.display.flip()
+
     def render_menu(self):
         """Dessine le menu de sélection."""
+        # Décrémenter le cooldown d'input du menu
+        if self.menu_input_cooldown > 0:
+            self.menu_input_cooldown -= 1
+
         cfg = self.config
         self.renderer.draw_menu(
             self.selected_color_index,
@@ -882,7 +909,9 @@ class GameEngine:
         while self.running:
             self.handle_events()
 
-            if self.state == GameState.MENU:
+            if self.state == GameState.WELCOME:
+                self.render_welcome()
+            elif self.state == GameState.MENU:
                 self.render_menu()
             elif self.state == GameState.PAUSED:
                 self.render_pause()

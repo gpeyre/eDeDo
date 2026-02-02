@@ -598,6 +598,87 @@ class Renderer:
             ])
 
 
+    def draw_welcome(self):
+        """Dessine l'écran de bienvenue avec explications."""
+        cfg = self.config
+        self.screen.fill(cfg.COLOR_MENU_BACKGROUND)
+
+        # Titre du jeu
+        title_font = pygame.font.Font(None, 90)
+        title = title_font.render("eDeDo", True, (255, 200, 100))
+        title_rect = title.get_rect(center=(cfg.WINDOW_WIDTH // 2, 80))
+        self.screen.blit(title, title_rect)
+
+        # Sous-titre
+        subtitle_font = pygame.font.Font(None, 32)
+        subtitle = subtitle_font.render("Un platformer d'action rapide", True, (200, 200, 200))
+        subtitle_rect = subtitle.get_rect(center=(cfg.WINDOW_WIDTH // 2, 130))
+        self.screen.blit(subtitle, subtitle_rect)
+
+        # Section: But du jeu
+        section_font = pygame.font.Font(None, 36)
+        text_font = pygame.font.Font(None, 24)
+
+        y_pos = 180
+
+        # But du jeu
+        goal_title = section_font.render("🎯 But du jeu:", True, (255, 215, 0))
+        self.screen.blit(goal_title, (50, y_pos))
+        y_pos += 40
+
+        goal_lines = [
+            "• Battez les ennemis en sautant sur leur tête ou en tirant des pommes",
+            "• Vainquez 15 ennemis pour débloquer la porte vers le niveau suivant",
+            "• Gérez votre énergie pour le double saut, le flottement et les tirs",
+            "• Collectez des coeurs pour récupérer vos vies (max 5)"
+        ]
+        for line in goal_lines:
+            text = text_font.render(line, True, (180, 180, 180))
+            self.screen.blit(text, (70, y_pos))
+            y_pos += 28
+
+        y_pos += 15
+
+        # Contrôles Clavier
+        controls_title = section_font.render("⌨️  Contrôles Clavier:", True, (100, 200, 255))
+        self.screen.blit(controls_title, (50, y_pos))
+        y_pos += 40
+
+        keyboard_controls = [
+            "Flèches/WASD: Déplacer  |  Haut/Espace: Sauter (double saut)",
+            "Shift: Flotter  |  Espace (maintenir): Tirer / Charger super-tir",
+            "ESC: Pause  |  R: Recommencer le niveau"
+        ]
+        for line in keyboard_controls:
+            text = text_font.render(line, True, (180, 180, 180))
+            self.screen.blit(text, (70, y_pos))
+            y_pos += 28
+
+        y_pos += 15
+
+        # Contrôles Manette
+        gamepad_title = section_font.render("🎮 Contrôles Manette:", True, (100, 255, 150))
+        self.screen.blit(gamepad_title, (50, y_pos))
+        y_pos += 40
+
+        gamepad_controls = [
+            "Stick/D-pad: Déplacer  |  A: Sauter  |  B: Flotter",
+            "X: Tirer / Charger  |  Start: Pause"
+        ]
+        for line in gamepad_controls:
+            text = text_font.render(line, True, (180, 180, 180))
+            self.screen.blit(text, (70, y_pos))
+            y_pos += 28
+
+        # Message pour continuer (clignotant)
+        import math
+        pulse = abs(math.sin(pygame.time.get_ticks() / 500))
+        alpha = int(150 + 105 * pulse)
+        continue_font = pygame.font.Font(None, 36)
+        continue_text = continue_font.render("Appuyez sur Entrée ou un bouton pour continuer", True, (alpha, alpha, alpha))
+        continue_rect = continue_text.get_rect(center=(cfg.WINDOW_WIDTH // 2, cfg.WINDOW_HEIGHT - 40))
+        self.screen.blit(continue_text, continue_rect)
+
     def draw_menu(self, selected_index: int, colors: list[tuple], names: list[str]):
         """
         Dessine l'écran de menu de sélection de couleur.
@@ -614,7 +695,7 @@ class Renderer:
 
         # Titre
         title_font = pygame.font.Font(None, 72)
-        title = title_font.render("Bouncing Ball", True, cfg.COLOR_MENU_TEXT)
+        title = title_font.render("eDeDo", True, cfg.COLOR_MENU_TEXT)
         title_rect = title.get_rect(center=(cfg.WINDOW_WIDTH // 2, 100))
         self.screen.blit(title, title_rect)
 

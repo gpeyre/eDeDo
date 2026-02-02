@@ -12,7 +12,7 @@ class Config:
     WINDOW_WIDTH = 800
     WINDOW_HEIGHT = 600
     FPS = 60
-    TITLE = "Bouncing Ball"
+    TITLE = "eDeDo"
 
     # Couleurs (RGB)
     COLOR_BACKGROUND = (30, 30, 40)

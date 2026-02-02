@@ -120,8 +120,8 @@ class Ball:
 
         # Régénération d'énergie: attendre 1s (60 frames) après dernière utilisation
         if self.energy_usage_timer >= 60 and self.energy < cfg.MAX_ENERGY:
-            # Régénérer 30% par seconde = 18 énergie par seconde = 0.3 énergie par frame
-            self.energy = min(cfg.MAX_ENERGY, self.energy + 0.3)
+            # Régénérer 60% par seconde = 36 énergie par seconde = 0.6 énergie par frame
+            self.energy = min(cfg.MAX_ENERGY, self.energy + 0.6)
 
         # Interpolation smooth pour l'affichage
         if self.displayed_energy < self.energy:
@@ -179,6 +179,9 @@ class Ball:
         # Collision avec les obstacles
         for obs in obstacles:
             old_x, old_y = self.x, self.y
+            # Sauvegarder la position de l'obstacle avant collision
+            old_obs_x = obs.x if hasattr(obs, 'min_x') else None  # Plateforme mobile
+
             self.x, self.y, self.vx, self.vy, hit, on_top = \
                 physics.check_rect_collision(
                     self.x, self.y, self.radius,
@@ -192,6 +195,13 @@ class Ball:
                     collisions.append((
                         old_x, old_y, 0, -1, speed / 5
                     ))
+
+                # Si c'est une plateforme mobile et qu'on est dessus, suivre son mouvement
+                if on_top and hasattr(obs, 'min_x'):  # C'est une MovingPlatform
+                    # Calculer le déplacement de la plateforme depuis le dernier frame
+                    platform_dx = obs.speed * obs.direction
+                    self.x += platform_dx  # Suivre la plateforme
+
             if on_top:
                 self.on_ground = True
 

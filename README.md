@@ -101,8 +101,23 @@ ededo/
 
 ### Running in Development Mode
 ```bash
-python -m game.main
+python main.py
 ```
+
+### Building a Standalone Executable (macOS)
+
+For detailed instructions on creating a standalone `.app` executable for macOS, see [BUILD_MAC_EXECUTABLE.md](BUILD_MAC_EXECUTABLE.md).
+
+Quick start:
+```bash
+# Install PyInstaller
+pip install pyinstaller
+
+# Build the app
+pyinstaller eDeDo.spec
+```
+
+The application will be created in `dist/eDeDo.app`.
 
 ### Code Style
 The project follows PEP 8 style guidelines with type hints where applicable.
