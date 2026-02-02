@@ -58,10 +58,10 @@ class Config:
     SPEED_DECAY_RATE = 0.95  # Taux de réduction quand au-dessus de la limite
     AIR_CONTROL_FACTOR = 0.6  # Facteur de contrôle dans les airs (60% du contrôle au sol)
 
-    # Plateformes - couleurs pastelles
-    COLOR_PLATFORM_STATIC = (200, 180, 220)  # Violet pastel
-    COLOR_PLATFORM_SLOW = (180, 220, 200)    # Vert pastel
-    COLOR_PLATFORM_FAST = (220, 200, 180)    # Beige pastel
+    # Plateformes - couleurs vives
+    COLOR_PLATFORM_STATIC = (255, 100, 255)  # Magenta vif
+    COLOR_PLATFORM_SLOW = (100, 255, 100)    # Vert vif
+    COLOR_PLATFORM_FAST = (255, 200, 50)     # Orange/jaune vif
     MOVING_PLATFORM_SPEED_SLOW = 1.0
     MOVING_PLATFORM_SPEED_FAST = 3.5
 
@@ -101,11 +101,11 @@ class Config:
         (100, 255, 100),  # Vert
         (255, 50, 200),   # Fushia
     ]
-    PLAYER_BALL_NAMES = ["Flash", "Équilibre", "Tank"]
+    PLAYER_BALL_NAMES = ["Flash", "Rebond", "Tank"]
     # Stats des personnages : (max_lives, speed_multiplier)
     PLAYER_STATS = [
         (4, 1.3),  # Flash: 4 vies, rapide (130%)
-        (5, 1.0),  # Équilibre: 5 vies, vitesse normale
+        (5, 1.0),  # Rebond: 5 vies, vitesse normale
         (6, 0.75), # Tank: 6 vies, lent (75%)
     ]
 

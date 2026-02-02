@@ -142,11 +142,17 @@ class GameEngine:
             for i in range(cfg.AI_BALL_COUNT)
         ]
 
-        # Créer la porte (en haut à droite, initialement inactive)
-        self.door = Door(
-            x=cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 80,
-            y=cfg.WALL_THICKNESS + 20
+        # Créer la porte (position random en haut, initialement inactive)
+        import random
+        door_x = random.randint(
+            cfg.WALL_THICKNESS + 20,
+            cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 100
         )
+        door_y = random.randint(
+            cfg.WALL_THICKNESS + 20,
+            cfg.WALL_THICKNESS + 150  # Dans le tiers supérieur de l'écran
+        )
+        self.door = Door(x=door_x, y=door_y)
 
     def handle_events(self):
         """Gère les événements Pygame."""

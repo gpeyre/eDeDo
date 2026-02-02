@@ -138,7 +138,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à soumettre une Pull Req
 
 ## 🎨 Crédits
 
-- **Design & Développement du Jeu** : Votre Équipe
+- **Design & Développement du Jeu** : Arthur et Camille Peyré Giuchaoua
 - **Audio** : Généré procéduralement avec NumPy
 - **Graphismes** : Rendu programmatique avec Pygame
 
