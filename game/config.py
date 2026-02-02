@@ -93,11 +93,11 @@ class Config:
 
     # Couleurs de boule joueur (menu de sélection)
     PLAYER_BALL_COLORS = [
-        (255, 100, 100),  # Rouge
-        (100, 200, 255),  # Bleu
-        (100, 255, 150),  # Vert
+        (255, 150, 50),   # Orange
+        (100, 255, 100),  # Vert
+        (255, 50, 200),   # Fushia
     ]
-    PLAYER_BALL_NAMES = ["Rouge", "Bleu", "Vert"]
+    PLAYER_BALL_NAMES = ["Orange", "Vert", "Fushia"]
 
     # Menu de bienvenue
     COLOR_MENU_BACKGROUND = (20, 20, 30)

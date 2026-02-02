@@ -293,7 +293,7 @@ class AIBall:
         return self.radius ** 2
 
     def update(self, physics: PhysicsEngine, obstacles: list['Obstacle']):
-        """Met à jour la boule IA avec comportement simple."""
+        """Met à jour la boule IA avec comportement variant selon la couleur/HP."""
         cfg = physics.config
 
         # Appliquer gravité
@@ -303,16 +303,34 @@ class AIBall:
         if self.on_ground:
             self.vx *= cfg.FRICTION
 
+        # Comportements différents selon max_hp (déterminé par la couleur initiale)
+        if self.max_hp == 1:  # Bleu - Rapide, saute souvent et haut
+            movement_chance = 0.04  # 4% de chance (2x plus actif)
+            jump_chance = 0.025  # 2.5% de chance (2.5x plus de sauts)
+            speed_multiplier = 1.5  # 50% plus rapide
+            jump_force = cfg.JUMP_FORCE * 0.85  # Sauts plus hauts
+        elif self.max_hp == 2:  # Violet - Moyennement rapide, saute moyennement
+            movement_chance = 0.025  # 2.5% de chance
+            jump_chance = 0.015  # 1.5% de chance
+            speed_multiplier = 1.0  # Vitesse normale
+            jump_force = cfg.JUMP_FORCE * 0.7  # Sauts moyens
+        else:  # Rouge (3 HP) - Lent, saute peu et bas
+            movement_chance = 0.015  # 1.5% de chance (moins actif)
+            jump_chance = 0.008  # 0.8% de chance (peu de sauts)
+            speed_multiplier = 0.6  # 40% plus lent
+            jump_force = cfg.JUMP_FORCE * 0.5  # Sauts bas
+
         # Mouvement aléatoire occasionnel
-        if random.random() < 0.02:  # 2% de chance par frame
-            self.vx += random.uniform(-cfg.AI_BALL_SPEED, cfg.AI_BALL_SPEED)
+        if random.random() < movement_chance:
+            self.vx += random.uniform(-cfg.AI_BALL_SPEED * speed_multiplier,
+                                     cfg.AI_BALL_SPEED * speed_multiplier)
 
         # Saut aléatoire si au sol
-        if self.on_ground and random.random() < 0.01:
-            self.vy = cfg.JUMP_FORCE * 0.7
+        if self.on_ground and random.random() < jump_chance:
+            self.vy = jump_force
 
-        # Limiter la vitesse horizontale
-        max_speed = cfg.AI_BALL_SPEED * 2
+        # Limiter la vitesse horizontale selon le type
+        max_speed = cfg.AI_BALL_SPEED * 2 * speed_multiplier
         self.vx = max(-max_speed, min(max_speed, self.vx))
 
         # Mettre à jour position

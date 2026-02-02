@@ -1,155 +1,155 @@
 # eDeDo 🎮
 
-A fast-paced 2D platformer game where you battle enemies, collect power-ups, and progress through procedurally generated levels!
+Un jeu de plateforme 2D rapide où vous combattez des ennemis, collectez des power-ups et progressez à travers des niveaux générés procéduralement !
 
 ![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![Pygame Version](https://img.shields.io/badge/pygame-2.6.1-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-## 🎯 Game Features
+## 🎯 Fonctionnalités du Jeu
 
-- **Dynamic Combat**: Jump on enemies' heads to damage them, or shoot them with apple projectiles
-- **Enemy Variety**: Three types of enemies with 1, 2, or 3 HP (Blue, Purple, Red)
-- **Progressive Difficulty**: Defeat 15 enemies to unlock a portal to the next level
-- **Procedural Generation**: Each level features randomly generated platforms and obstacles
-- **Energy System**: Manage your energy for double jumps, floating, and shooting
-- **Lives System**: Start with 5 lives, collect hearts to recover
-- **Controller Support**: Full gamepad support with intuitive controls
+- **Combat Dynamique** : Sautez sur la tête des ennemis pour les blesser, ou tirez-leur dessus avec des pommes
+- **Variété d'Ennemis** : Trois types d'ennemis avec 1, 2 ou 3 PV (Bleu, Violet, Rouge)
+- **Difficulté Progressive** : Battez 15 ennemis pour débloquer un portail vers le niveau suivant
+- **Génération Procédurale** : Chaque niveau propose des plateformes et obstacles générés aléatoirement
+- **Système d'Énergie** : Gérez votre énergie pour les doubles sauts, le flottement et les tirs
+- **Système de Vies** : Commencez avec 5 vies, collectez des cœurs pour récupérer
+- **Support Manette** : Support complet de manette avec contrôles intuitifs
 
-## 🎮 Controls
+## 🎮 Contrôles
 
-### Keyboard
-- **Arrow Keys / WASD**: Move left/right
-- **Up Arrow / Space**: Jump (double jump available)
-- **Shift**: Float (slow descent)
-- **Space (hold)**: Shoot apples / Charge super shot
-- **R**: Restart level
-- **Escape**: Pause menu
+### Clavier
+- **Flèches / WASD** : Déplacer gauche/droite
+- **Flèche Haut / Espace** : Sauter (double saut disponible)
+- **Shift** : Flotter (descente lente)
+- **Espace (maintenir)** : Tirer des pommes / Charger le super tir
+- **R** : Recommencer le niveau
+- **Échap** : Menu pause
 
-### Controller
-- **Left Stick / D-Pad**: Move
-- **Button A**: Jump
-- **Button B**: Float
-- **Button X**: Shoot / Charge
-- **Start**: Pause menu
+### Manette
+- **Stick Gauche / D-Pad** : Déplacer
+- **Bouton A** : Sauter
+- **Bouton B** : Flotter
+- **Bouton X** : Tirer / Charger
+- **Start** : Menu pause
 
-## 📋 Requirements
+## 📋 Prérequis
 
-- Python 3.9 or higher
+- Python 3.9 ou supérieur
 - Pygame 2.6.1
-- NumPy (for audio generation)
+- NumPy (pour la génération audio)
 
 ## 🚀 Installation
 
-1. Clone the repository:
+1. Clonez le dépôt :
 ```bash
 git clone https://github.com/yourusername/ededo.git
 cd ededo
 ```
 
-2. Install dependencies:
+2. Installez les dépendances :
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Run the game:
+3. Lancez le jeu :
 ```bash
-python -m game.main
+python main.py
 ```
 
 ## 🎲 Gameplay
 
-1. **Choose Your Color**: Select your ball color at the start
-2. **Battle Enemies**: Jump on their heads or shoot them with apples
-3. **Manage Energy**: Your energy regenerates after 1 second of not using it (30%/s)
-4. **Collect Hearts**: Restore lives when you have less than 5
-5. **Reach the Goal**: Defeat 15 enemies to open the portal
-6. **Progress**: Enter the portal to generate a new level
+1. **Choisissez Votre Couleur** : Sélectionnez la couleur de votre boule au départ
+2. **Combattez les Ennemis** : Sautez sur leur tête ou tirez-leur dessus avec des pommes
+3. **Gérez l'Énergie** : Votre énergie se régénère après 1 seconde sans l'utiliser (60%/s)
+4. **Collectez des Cœurs** : Restaurez vos vies quand vous en avez moins de 5
+5. **Atteignez l'Objectif** : Battez 15 ennemis pour ouvrir le portail
+6. **Progressez** : Entrez dans le portail pour générer un nouveau niveau
 
-### Enemy Types
-- 🔵 **Blue** (1 HP): Small and quick
-- 🟣 **Purple** (2 HP): Medium strength
-- 🔴 **Red** (3 HP): Large and tough
+### Types d'Ennemis
+- 🔵 **Bleu** (1 PV) : Petit et rapide
+- 🟣 **Violet** (2 PV) : Force moyenne
+- 🔴 **Rouge** (3 PV) : Grand et résistant
 
-### Combat Mechanics
-- **Jump on Head**: Deal 1 damage to enemy, bounce upward
-- **Side Collision**: Lose 1 life (with temporary invincibility)
-- **Shooting**: Apple projectiles deal 1 damage
-- **Charged Shot**: Hold to charge a powerful strawberry projectile
+### Mécaniques de Combat
+- **Saut sur la Tête** : Inflige 1 dégât à l'ennemi, rebond vers le haut
+- **Collision Latérale** : Perte d'1 vie (avec invincibilité temporaire)
+- **Tir** : Les projectiles de pomme infligent 1 dégât
+- **Tir Chargé** : Maintenez pour charger un puissant projectile de fraise qui **traverse tout**
 
-## 🏗️ Project Structure
+## 🏗️ Structure du Projet
 
 ```
 ededo/
 ├── game/
 │   ├── __init__.py
-│   ├── main.py           # Entry point
-│   ├── config.py         # Game configuration
-│   ├── engine.py         # Game engine and main loop
-│   ├── entities.py       # Game entities (Ball, Enemy, etc.)
-│   ├── physics.py        # Physics engine
-│   ├── renderer.py       # Rendering system
-│   ├── particles.py      # Particle effects
-│   └── audio.py          # Audio system
+│   ├── config.py         # Configuration du jeu
+│   ├── engine.py         # Moteur de jeu et boucle principale
+│   ├── entities.py       # Entités du jeu (Ball, Enemy, etc.)
+│   ├── physics.py        # Moteur physique
+│   ├── renderer.py       # Système de rendu
+│   ├── particles.py      # Effets de particules
+│   └── audio.py          # Système audio
+├── main.py               # Point d'entrée
 ├── requirements.txt
 ├── README.md
 ├── LICENSE
 └── .gitignore
 ```
 
-## 🛠️ Development
+## 🛠️ Développement
 
-### Running in Development Mode
+### Lancement en Mode Développement
 ```bash
 python main.py
 ```
 
-### Building a Standalone Executable (macOS)
+### Création d'un Exécutable Standalone (macOS)
 
-For detailed instructions on creating a standalone `.app` executable for macOS, see [BUILD_MAC_EXECUTABLE.md](BUILD_MAC_EXECUTABLE.md).
+Pour des instructions détaillées sur la création d'un exécutable `.app` standalone pour macOS, consultez [BUILD_MAC_EXECUTABLE.md](BUILD_MAC_EXECUTABLE.md).
 
-Quick start:
+Démarrage rapide :
 ```bash
-# Install PyInstaller
+# Installer PyInstaller
 pip install pyinstaller
 
-# Build the app
+# Construire l'app
 pyinstaller eDeDo.spec
 ```
 
-The application will be created in `dist/eDeDo.app`.
+L'application sera créée dans `dist/eDeDo.app`.
 
-### Code Style
-The project follows PEP 8 style guidelines with type hints where applicable.
+### Style de Code
+Le projet suit les directives de style PEP 8 avec des annotations de type lorsque applicable.
 
-## 📝 License
+## 📝 Licence
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Ce projet est sous licence MIT - voir le fichier [LICENSE](LICENSE) pour plus de détails.
 
-## 🤝 Contributing
+## 🤝 Contribution
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Les contributions sont les bienvenues ! N'hésitez pas à soumettre une Pull Request.
 
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. Forkez le projet
+2. Créez votre branche de fonctionnalité (`git checkout -b feature/NouvelleFonctionnalite`)
+3. Committez vos changements (`git commit -m 'Ajout d'une nouvelle fonctionnalité'`)
+4. Poussez vers la branche (`git push origin feature/NouvelleFonctionnalite`)
+5. Ouvrez une Pull Request
 
-## 🎨 Credits
+## 🎨 Crédits
 
-- **Game Design & Development**: Your Team
-- **Audio**: Procedurally generated using NumPy
-- **Graphics**: Programmatic rendering with Pygame
+- **Design & Développement du Jeu** : Votre Équipe
+- **Audio** : Généré procéduralement avec NumPy
+- **Graphismes** : Rendu programmatique avec Pygame
 
-## 🐛 Known Issues
+## 🐛 Problèmes Connus
 
-See [todo.md](todo.md) for current development tasks and known issues.
+Voir [todo.md](todo.md) pour les tâches de développement actuelles et les problèmes connus.
 
 ## 📧 Contact
 
-Project Link: [https://github.com/yourusername/ededo](https://github.com/yourusername/ededo)
+Lien du Projet : [https://github.com/yourusername/ededo](https://github.com/yourusername/ededo)
 
 ---
 
-Made with ❤️ and Python
+Fait avec ❤️ et Python
