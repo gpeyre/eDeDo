@@ -86,12 +86,16 @@ class GameEngine:
         """Crée le niveau avec la boule et les obstacles."""
         cfg = self.config
 
-        # Position initiale de la boule (tout en haut, tombe) avec couleur sélectionnée
+        # Position initiale de la boule (tout en haut, tombe) avec couleur et stats sélectionnées
         selected_color = cfg.PLAYER_BALL_COLORS[self.selected_color_index]
+        max_lives, speed_mult = cfg.PLAYER_STATS[self.selected_color_index]
         self.ball = Ball(
             x=cfg.WINDOW_WIDTH // 2,
             y=cfg.WALL_THICKNESS + cfg.BALL_RADIUS + 5,
-            color=selected_color
+            color=selected_color,
+            lives=max_lives,
+            max_lives=max_lives,
+            speed_multiplier=speed_mult
         )
 
         # Générer obstacles aléatoirement
@@ -110,16 +114,18 @@ class GameEngine:
             width = random.randint(80, 180)
             self.obstacles.append(Obstacle.create_platform(x, y, width))
 
-        # Nombre aléatoire de plateformes mobiles (2-4)
+        # Plateformes mobiles: moitié lentes, moitié rapides
         num_moving = random.randint(2, 4)
-        for _ in range(num_moving):
+        for i in range(num_moving):
             x = random.randint(cfg.WALL_THICKNESS + 50, cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 200)
             y = random.randint(100, 350)
             width = random.randint(100, 160)
             travel = random.randint(150, 300)
-            speed = random.uniform(1.5, 3.0)
+            # Alterner entre lent et rapide
+            is_fast = (i % 2 == 1)
+            speed = cfg.MOVING_PLATFORM_SPEED_FAST if is_fast else cfg.MOVING_PLATFORM_SPEED_SLOW
             self.obstacles.append(
-                MovingPlatform.create(x, y, width, travel, speed)
+                MovingPlatform.create(x, y, width, travel, speed, is_fast)
             )
 
         # Quelques blocs (1-3)
@@ -215,6 +221,14 @@ class GameEngine:
                     elif event.value > 0.5:  # Droite
                         self._handle_menu_keydown(pygame.K_RIGHT)
                         self.menu_input_cooldown = 15  # 0.25 seconde de cooldown
+                # Stick analogique vertical pour menu pause
+                elif self.state == GameState.PAUSED and event.axis == 1 and self.menu_input_cooldown <= 0:  # Axe vertical
+                    if event.value < -0.5:  # Haut
+                        self.pause_menu_index = 0
+                        self.menu_input_cooldown = 15
+                    elif event.value > 0.5:  # Bas
+                        self.pause_menu_index = 1
+                        self.menu_input_cooldown = 15
 
     def _handle_menu_keydown(self, key):
         """Gère les touches du menu."""
@@ -505,7 +519,7 @@ class GameEngine:
                     if missile.check_collision(ai_ball.x, ai_ball.y, ai_ball.radius):
                         # Réduire les HP
                         ai_ball.hp -= 1
-                        ai_ball.update_color()  # Mettre à jour la couleur selon les nouveaux HP
+                        ai_ball.update_size()  # Mettre à jour la couleur selon les nouveaux HP
 
                         if missile not in missiles_to_remove:
                             missiles_to_remove.append(missile)
@@ -540,8 +554,9 @@ class GameEngine:
         if self.enemies_defeated >= self.config.ENEMIES_TO_WIN:
             self.door.active = True
 
-        # Spawn d'ennemis si moins de 6
-        if len(self.ai_balls) < self.config.ENEMY_MAX_COUNT:
+        # Spawn d'ennemis selon le niveau actuel
+        enemy_max_for_level = min(3 + self.current_level, 6)  # 4 pour niveau 1, 5 pour niveau 2, 6 pour 3+
+        if len(self.ai_balls) < enemy_max_for_level:
             self.spawn_timer += 1
             if self.spawn_timer >= self.config.ENEMY_SPAWN_INTERVAL:
                 self.spawn_timer = 0
@@ -593,6 +608,12 @@ class GameEngine:
         # Mettre à jour les bulles ennemies
         for bullet in self.enemy_bullets:
             bullet.update(self.config)
+
+            # Vérifier collision avec les obstacles (plateformes)
+            for obstacle in self.obstacles:
+                if bullet.check_obstacle_collision(obstacle):
+                    bullet.active = False
+                    break
 
         # Retirer les bulles inactives
         self.enemy_bullets = [b for b in self.enemy_bullets if b.active]
@@ -653,7 +674,7 @@ class GameEngine:
                 self.enemy_bullets.remove(bullet)
 
         # Spawn de coeurs si < 5 vies
-        if self.ball.lives < 5:
+        if self.ball.lives < self.ball.max_lives:
             self.heart_spawn_timer += 1
             if self.heart_spawn_timer >= 300:  # Toutes les 5 secondes
                 self.heart_spawn_timer = 0
@@ -669,7 +690,7 @@ class GameEngine:
         hearts_to_remove = []
         for heart in self.heart_pickups:
             if heart.check_collision(self.ball.x, self.ball.y, self.ball.radius):
-                if self.ball.lives < 5:
+                if self.ball.lives < self.ball.max_lives:
                     self.ball.lives += 1
                     self.audio.play(SoundType.DOUBLE_JUMP, 0.6)  # Son joyeux
                 hearts_to_remove.append(heart)
@@ -718,7 +739,7 @@ class GameEngine:
                 if jumping_on_head:
                     # Saut sur la tête: retirer 1 HP à l'ennemi
                     ai_ball.hp -= 1
-                    ai_ball.update_color()
+                    ai_ball.update_size()
 
                     # Faire rebondir le joueur
                     self.ball.vy = -8  # Petit rebond

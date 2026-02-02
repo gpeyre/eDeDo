@@ -438,61 +438,7 @@ class Renderer:
         )
         self.screen.blit(text2, (10, self.config.WINDOW_HEIGHT - 30))
 
-        # Barre de vitesse en haut à gauche
-        speed_bar_width = 150
-        speed_bar_height = 20
-        speed_x = 20
-        speed_y = 30
-
-        # Fond de la barre
-        pygame.draw.rect(
-            self.screen,
-            (60, 60, 60),
-            (speed_x, speed_y, speed_bar_width, speed_bar_height)
-        )
-
-        # Vitesse actuelle
-        current_speed = abs(ball.vx)
-        speed_percent = min(1.0, current_speed / self.config.MAX_SPEED)
-        current_width = int(speed_bar_width * speed_percent)
-
-        # Couleur selon le niveau de vitesse
-        if speed_percent > 0.8:
-            speed_color = (255, 100, 100)  # Rouge (trop rapide)
-        elif speed_percent > 0.5:
-            speed_color = (255, 200, 100)  # Orange
-        else:
-            speed_color = (100, 255, 100)  # Vert
-
-        pygame.draw.rect(
-            self.screen,
-            speed_color,
-            (speed_x, speed_y, current_width, speed_bar_height)
-        )
-
-        # Bordure de la barre
-        pygame.draw.rect(
-            self.screen,
-            (200, 200, 200),
-            (speed_x, speed_y, speed_bar_width, speed_bar_height),
-            2
-        )
-
-        # Ligne de limite max
-        max_line_x = speed_x + speed_bar_width
-        pygame.draw.line(
-            self.screen,
-            (255, 255, 255),
-            (max_line_x - 2, speed_y),
-            (max_line_x - 2, speed_y + speed_bar_height),
-            2
-        )
-
-        # Texte vitesse
-        speed_text = font.render(f"Vitesse: {int(current_speed)}/{self.config.MAX_SPEED}", True, (180, 180, 180))
-        self.screen.blit(speed_text, (speed_x, speed_y - 20))
-
-        # Barre d'énergie
+        # Barre d'énergie (la barre de vitesse a été supprimée)
         energy_bar_width = 150
         energy_bar_height = 20
         energy_x = self.config.WINDOW_WIDTH - energy_bar_width - 20
@@ -573,7 +519,7 @@ class Renderer:
         start_x = 20
         start_y = 20
 
-        for i in range(5):  # Toujours afficher 5 coeurs max
+        for i in range(ball.max_lives):  # Afficher autant de coeurs que le max du personnage
             heart_x = start_x + i * heart_spacing
             heart_y = start_y
 

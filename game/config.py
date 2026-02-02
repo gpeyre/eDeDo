@@ -54,12 +54,16 @@ class Config:
     FLOAT_GRAVITY_MULTIPLIER = 0.3  # Gravité réduite pendant le flottement
 
     # Limite de vitesse
-    MAX_SPEED = 12  # Vitesse horizontale maximale
+    MAX_SPEED = 9  # Vitesse horizontale maximale (réduit de 12 à 9)
     SPEED_DECAY_RATE = 0.95  # Taux de réduction quand au-dessus de la limite
+    AIR_CONTROL_FACTOR = 0.6  # Facteur de contrôle dans les airs (60% du contrôle au sol)
 
-    # Plateforme mobile
-    MOVING_PLATFORM_SPEED = 2
-    COLOR_MOVING_PLATFORM = (180, 120, 80)
+    # Plateformes - couleurs pastelles
+    COLOR_PLATFORM_STATIC = (200, 180, 220)  # Violet pastel
+    COLOR_PLATFORM_SLOW = (180, 220, 200)    # Vert pastel
+    COLOR_PLATFORM_FAST = (220, 200, 180)    # Beige pastel
+    MOVING_PLATFORM_SPEED_SLOW = 1.0
+    MOVING_PLATFORM_SPEED_FAST = 3.5
 
     # Boules IA
     AI_BALL_RADIUS = 14
@@ -97,7 +101,13 @@ class Config:
         (100, 255, 100),  # Vert
         (255, 50, 200),   # Fushia
     ]
-    PLAYER_BALL_NAMES = ["Orange", "Vert", "Fushia"]
+    PLAYER_BALL_NAMES = ["Flash", "Équilibre", "Tank"]
+    # Stats des personnages : (max_lives, speed_multiplier)
+    PLAYER_STATS = [
+        (4, 1.3),  # Flash: 4 vies, rapide (130%)
+        (5, 1.0),  # Équilibre: 5 vies, vitesse normale
+        (6, 0.75), # Tank: 6 vies, lent (75%)
+    ]
 
     # Menu de bienvenue
     COLOR_MENU_BACKGROUND = (20, 20, 30)
@@ -122,4 +132,4 @@ class Config:
     # Spawn d'ennemis
     ENEMY_SPAWN_INTERVAL = 180  # Frames entre chaque spawn (3 secondes à 60 FPS)
     ENEMY_MAX_COUNT = 6  # Nombre maximum d'ennemis
-    ENEMIES_TO_WIN = 15  # Nombre d'ennemis à vaincre pour débloquer la porte
+    ENEMIES_TO_WIN = 10  # Nombre d'ennemis à vaincre pour débloquer la porte (réduit de 15 à 10)

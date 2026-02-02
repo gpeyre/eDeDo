@@ -29,8 +29,10 @@ class Ball:
     color: tuple = field(default_factory=lambda: Config.COLOR_BALL)
     walk_particle_timer: int = 0  # Pour particules de marche
     lives: int = 5  # Nombre de vies
+    max_lives: int = 5  # Nombre de vies maximum
     invincible_timer: int = 0  # Timer d'invincibilité après hit
     energy_usage_timer: int = 0  # Timer depuis dernière utilisation d'énergie
+    speed_multiplier: float = 1.0  # Multiplicateur de vitesse (varie selon le personnage)
 
     def can_jump(self) -> bool:
         """Vérifie si la boule peut sauter."""
@@ -46,12 +48,16 @@ class Ball:
 
     def move_left(self, speed: float = Config.BALL_SPEED):
         """Déplace la boule vers la gauche."""
-        self.vx -= speed * 0.3
+        # Appliquer moins de contrôle si en l'air + multiplicateur selon le personnage
+        control_factor = Config.AIR_CONTROL_FACTOR if not self.on_ground else 1.0
+        self.vx -= speed * 0.3 * control_factor * self.speed_multiplier
         self.facing_direction = -1
 
     def move_right(self, speed: float = Config.BALL_SPEED):
         """Déplace la boule vers la droite."""
-        self.vx += speed * 0.3
+        # Appliquer moins de contrôle si en l'air + multiplicateur selon le personnage
+        control_factor = Config.AIR_CONTROL_FACTOR if not self.on_ground else 1.0
+        self.vx += speed * 0.3 * control_factor * self.speed_multiplier
         self.facing_direction = 1
 
     def jump(self, force: float = Config.JUMP_FORCE) -> bool:
@@ -246,7 +252,7 @@ class Obstacle:
     y: float
     width: float
     height: float
-    color: tuple = field(default_factory=lambda: Config.COLOR_OBSTACLE)
+    color: tuple = field(default_factory=lambda: Config.COLOR_PLATFORM_STATIC)
 
     def update(self):
         """Met à jour l'obstacle (pour sous-classes)."""
@@ -254,8 +260,8 @@ class Obstacle:
 
     @classmethod
     def create_platform(cls, x: float, y: float, width: float) -> 'Obstacle':
-        """Crée une plateforme (obstacle horizontal fin)."""
-        return cls(x=x, y=y, width=width, height=20)
+        """Crée une plateforme statique (obstacle horizontal fin)."""
+        return cls(x=x, y=y, width=width, height=20, color=Config.COLOR_PLATFORM_STATIC)
 
     @classmethod
     def create_block(cls, x: float, y: float, size: float) -> 'Obstacle':
@@ -278,14 +284,16 @@ class AIBall:
     on_ground: bool = False
     shoot_timer: int = 0  # Timer pour tirer
 
-    def update_color(self):
-        """Met à jour la couleur selon les HP actuels."""
+    def update_size(self):
+        """Met à jour la taille selon les HP actuels (mais garde la couleur initiale)."""
+        # La taille change selon les HP actuels
         if self.hp >= 3:
-            self.color = Config.AI_BALL_COLOR_3HP
+            self.radius = Config.AI_BALL_RADIUS_3HP
         elif self.hp == 2:
-            self.color = Config.AI_BALL_COLOR_2HP
+            self.radius = Config.AI_BALL_RADIUS_2HP
         else:
-            self.color = Config.AI_BALL_COLOR_1HP
+            self.radius = Config.AI_BALL_RADIUS_1HP
+        # La couleur reste inchangée (couleur initiale = type d'ennemi)
 
     @property
     def mass(self) -> float:
@@ -414,6 +422,19 @@ class EnemyBullet:
         distance = ((self.x - ball_x) ** 2 + (self.y - ball_y) ** 2) ** 0.5
         return distance < self.radius + ball_radius
 
+    def check_obstacle_collision(self, obstacle) -> bool:
+        """Vérifie la collision avec un obstacle (plateforme)."""
+        # Point le plus proche du rectangle au centre de la bulle
+        closest_x = max(obstacle.x, min(self.x, obstacle.x + obstacle.width))
+        closest_y = max(obstacle.y, min(self.y, obstacle.y + obstacle.height))
+
+        # Distance entre le point le plus proche et le centre de la bulle
+        distance_x = self.x - closest_x
+        distance_y = self.y - closest_y
+        distance_squared = distance_x * distance_x + distance_y * distance_y
+
+        return distance_squared < (self.radius * self.radius)
+
 
 @dataclass
 class HeartPickup:
@@ -499,9 +520,9 @@ class MovingPlatform(Obstacle):
 
     min_x: float = 0
     max_x: float = 0
-    speed: float = Config.MOVING_PLATFORM_SPEED
+    speed: float = Config.MOVING_PLATFORM_SPEED_SLOW
     direction: int = 1  # 1 = droite, -1 = gauche
-    color: tuple = field(default_factory=lambda: Config.COLOR_MOVING_PLATFORM)
+    color: tuple = field(default_factory=lambda: Config.COLOR_PLATFORM_SLOW)
 
     def update(self):
         """Déplace la plateforme."""
@@ -522,7 +543,8 @@ class MovingPlatform(Obstacle):
         y: float,
         width: float,
         travel_distance: float,
-        speed: float = Config.MOVING_PLATFORM_SPEED
+        speed: float = Config.MOVING_PLATFORM_SPEED_SLOW,
+        is_fast: bool = False
     ) -> 'MovingPlatform':
         """
         Crée une plateforme mobile.
@@ -533,7 +555,10 @@ class MovingPlatform(Obstacle):
             width: Largeur de la plateforme
             travel_distance: Distance totale de déplacement
             speed: Vitesse de déplacement
+            is_fast: Si True, plateforme rapide (sinon lente)
         """
+        # Choisir couleur selon vitesse
+        color = Config.COLOR_PLATFORM_FAST if is_fast else Config.COLOR_PLATFORM_SLOW
         return cls(
             x=x,
             y=y,
@@ -541,7 +566,8 @@ class MovingPlatform(Obstacle):
             height=20,
             min_x=x,
             max_x=x + travel_distance,
-            speed=speed
+            speed=speed,
+            color=color
         )
 
 
