@@ -1,3 +1,1 @@
-fais qu'on quand on a chargé le super tir, on peut toujours le tirer, ca enlever 1/2 barre d'energie, mais si on a moins que 50% d'energie, ca marche quand meme et ca enleve toute l'energie
-fais que si on appuis sur le haut, les yeux pointent vers le haut et on peut tirer vers le haut, et idem vers le bas
-fais un tableau des score a la fin avec tous les high score (le score etant le nombre d'enemis tues)
+corrige pour que le score compte le nombre total d'enemis tues depuis le debut.
