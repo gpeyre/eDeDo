@@ -6,6 +6,7 @@ Définit les objets du jeu : boule, obstacles.
 
 import random
 from dataclasses import dataclass, field
+from typing import Optional
 from .config import Config
 from .physics import PhysicsEngine
 
@@ -364,9 +365,12 @@ class AIBall:
     radius: float = Config.AI_BALL_RADIUS
     hitbox_width: float = Config.ENEMY_HITBOX_SIZES[1][0]
     hitbox_height: float = Config.ENEMY_HITBOX_SIZES[1][1]
+    sprite_width: float = Config.ENEMY_SPRITE_SIZES[1][0]
+    sprite_height: float = Config.ENEMY_SPRITE_SIZES[1][1]
     vx: float = 0.0
     vy: float = 0.0
     color: tuple = field(default_factory=lambda: Config.AI_BALL_COLOR_1HP)
+    enemy_type: int = 1
     hp: int = 1  # Points de vie
     max_hp: int = 1  # HP initiaux (pour déterminer la taille)
     on_ground: bool = False
@@ -374,16 +378,8 @@ class AIBall:
     facing_direction: int = 1  # 1 = droite, -1 = gauche
 
     def update_size(self):
-        """Met à jour la hitbox selon le type d'ennemi (max_hp)."""
-        if self.max_hp >= 3:
-            self.radius = Config.AI_BALL_RADIUS_3HP
-            self.hitbox_width, self.hitbox_height = Config.ENEMY_HITBOX_SIZES[3]
-        elif self.max_hp == 2:
-            self.radius = Config.AI_BALL_RADIUS_2HP
-            self.hitbox_width, self.hitbox_height = Config.ENEMY_HITBOX_SIZES[2]
-        else:
-            self.radius = Config.AI_BALL_RADIUS_1HP
-            self.hitbox_width, self.hitbox_height = Config.ENEMY_HITBOX_SIZES[1]
+        """Conserve une taille fixe: les ennemis ne changent plus de taille avec les HP."""
+        return
 
     @property
     def half_w(self) -> float:
@@ -468,37 +464,40 @@ class AIBall:
                 self.on_ground = True
 
     @classmethod
-    def create_random(cls, config: Config, index: int) -> 'AIBall':
+    def create_random(
+        cls,
+        config: Config,
+        index: int,
+        enemy_size: Optional[tuple[float, float]] = None
+    ) -> 'AIBall':
         """Crée une boule IA à une position aléatoire avec couleur et HP aléatoires."""
         wall = config.WALL_THICKNESS
 
-        # Choisir aléatoirement les HP initiaux (1, 2 ou 3)
-        hp = random.randint(1, 3)
+        enemy_type = random.randint(1, 3)
+        hp = config.ENEMY_TYPE_HP[enemy_type]
+        sprite_w, sprite_h = enemy_size or config.ENEMY_SPRITE_SIZES[enemy_type]
+        hitbox_w, hitbox_h = enemy_size or config.ENEMY_HITBOX_SIZES[enemy_type]
 
-        # Déterminer rayon et couleur selon HP
-        if hp == 3:
-            ball_radius = config.AI_BALL_RADIUS_3HP
+        if enemy_type == 3:
             color = config.AI_BALL_COLOR_3HP
-            hitbox_w, hitbox_h = config.ENEMY_HITBOX_SIZES[3]
-        elif hp == 2:
-            ball_radius = config.AI_BALL_RADIUS_2HP
+        elif enemy_type == 2:
             color = config.AI_BALL_COLOR_2HP
-            hitbox_w, hitbox_h = config.ENEMY_HITBOX_SIZES[2]
         else:
-            ball_radius = config.AI_BALL_RADIUS_1HP
             color = config.AI_BALL_COLOR_1HP
-            hitbox_w, hitbox_h = config.ENEMY_HITBOX_SIZES[1]
 
         initial_vx = random.uniform(-2, 2)
         return cls(
             x=random.uniform(wall + hitbox_w / 2 + 10, config.PLAY_AREA_WIDTH - wall - hitbox_w / 2 - 10),
             y=random.uniform(wall + hitbox_h / 2 + 10, config.PLAY_AREA_HEIGHT // 2),
-            radius=ball_radius,
+            radius=max(hitbox_w, hitbox_h) / 2,
             hitbox_width=hitbox_w,
             hitbox_height=hitbox_h,
+            sprite_width=sprite_w,
+            sprite_height=sprite_h,
             vx=initial_vx,
             vy=0,
             color=color,
+            enemy_type=enemy_type,
             hp=hp,
             max_hp=hp,
             facing_direction=1 if initial_vx >= 0 else -1
@@ -554,7 +553,7 @@ class HeartPickup:
 
     x: float
     y: float
-    size: float = 15
+    size: float = Config.HEART_PICKUP_SPRITE_SIZE[0] / 2
     vy: float = 2  # Vitesse de chute
     active: bool = True
 

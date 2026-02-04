@@ -19,12 +19,22 @@ class Config:
     TITLE = "eDeDo"
     ASSETS_DIR = "assets"
     BACKGROUND_IMAGE = "background.png"
+    MENU_BACKGROUND_IMAGE = "wellcome.png"
     PLAYER_IMAGES = ["perso-1.png", "perso-2.png", "perso-3.png"]
     ENEMY_IMAGES = {
         1: "ennemi-1.png",
         2: "ennemi-2.png",
         3: "ennemi-3.png",
     }
+    ENEMY_TYPE_HP = {
+        1: 1,
+        2: 2,
+        3: 4,
+    }
+    BULLET_IMAGE = "bullet-1.png"
+    BULLET_SUPER_IMAGE = "bullet-2.png"
+    BULLET_ENEMY_IMAGE = "bullet-3.png"
+    HEART_IMAGE = "coeur.png"
 
     # Couleurs (RGB)
     COLOR_BACKGROUND = (30, 30, 40)
@@ -54,18 +64,18 @@ class Config:
     # Boule
     BALL_RADIUS = 20
     PLAYER_SPRITE_SIZES = [
-        (55, 65),   # perso-1 (x0.6)
-        (71, 65),   # perso-2 (x0.6)
-        (94, 61),   # perso-3 (x0.6)
+        (66, 78),   # perso-1 (+20%)
+        (85, 78),   # perso-2 (+20%)
+        (113, 73),  # perso-3 (+20%)
     ]
     PLAYER_HITBOX_SIZES = [
-        (55, 65),    # perso-1 (meme taille que sprite)
-        (71, 65),    # perso-2 (meme taille que sprite)
-        (94, 61),    # perso-3 (meme taille que sprite)
+        (66, 78),    # perso-1 (meme taille que sprite, +20%)
+        (85, 78),    # perso-2 (meme taille que sprite, +20%)
+        (113, 73),   # perso-3 (meme taille que sprite, +20%)
     ]
     BALL_SPEED = 5
     JUMP_FORCE = -12
-    MAX_JUMPS = 2  # Double saut
+    MAX_JUMPS = 3  # Triple saut
 
     # Système d'énergie
     MAX_ENERGY = 100
@@ -97,15 +107,24 @@ class Config:
     # Boules IA
     AI_BALL_RADIUS = 14
     ENEMY_SPRITE_SIZES = {
-        1: (53, 46),   # x0.6
-        2: (60, 50),   # x0.6
-        3: (67, 56),   # x0.6
+        1: PLAYER_SPRITE_SIZES[1],
+        2: PLAYER_SPRITE_SIZES[1],
+        3: PLAYER_SPRITE_SIZES[1],
     }
     ENEMY_HITBOX_SIZES = {
-        1: (53, 46),  # meme taille que sprite
-        2: (60, 50),  # meme taille que sprite
-        3: (67, 56),  # meme taille que sprite
+        1: PLAYER_HITBOX_SIZES[1],
+        2: PLAYER_HITBOX_SIZES[1],
+        3: PLAYER_HITBOX_SIZES[1],
     }
+    ENEMY_BULLET_SPRITE_SIZE = (
+        int(PLAYER_SPRITE_SIZES[1][0] * 0.4),
+        int(PLAYER_SPRITE_SIZES[1][1] * 0.4),
+    )
+    HEART_PICKUP_SPRITE_SIZE = (
+        int(PLAYER_SPRITE_SIZES[1][0] * 0.8),
+        int(PLAYER_SPRITE_SIZES[1][1] * 0.8),
+    )
+    HEART_HUD_SPRITE_SIZE = (29, 29)  # +20%
     AI_BALL_COUNT = 3
     # Couleurs des ennemis selon HP
     AI_BALL_COLOR_1HP = (100, 150, 255)  # Bleu pour 1 HP
@@ -140,7 +159,7 @@ class Config:
         (100, 255, 100),  # Vert
         (255, 50, 200),   # Fushia
     ]
-    PLAYER_BALL_NAMES = ["Flash", "Medium", "Tank"]
+    PLAYER_BALL_NAMES = ["Flameche", "Bulle", "Rock"]
     # Stats des personnages : (max_lives, speed_multiplier, jump_multiplier)
     PLAYER_STATS = [
         (4, 1.5, 1.2),   # Flash: 4 vies, très rapide (150%), saute plus haut (120%)
@@ -170,7 +189,7 @@ class Config:
 
     # Rage / super attaque
     RAGE_GAIN_PER_HIT = 10
-    RAGE_SUPER_COST = 50
+    RAGE_SUPER_COST = 100
 
     # Spawn d'ennemis
     ENEMY_SPAWN_INTERVAL = 180  # Frames entre chaque spawn (3 secondes à 60 FPS)

@@ -160,8 +160,9 @@ class GameEngine:
             self.obstacles.append(Obstacle.create_block(x, y, size))
 
         # Créer les boules IA
+        enemy_size = self.config.PLAYER_SPRITE_SIZES[self.ball.character_index]
         self.ai_balls = [
-            AIBall.create_random(cfg, i)
+            AIBall.create_random(cfg, i, enemy_size=enemy_size)
             for i in range(cfg.AI_BALL_COUNT)
         ]
 
@@ -178,8 +179,8 @@ class GameEngine:
         self._reset_secret_room()
 
     def _is_pause_button(self, button: int) -> bool:
-        """Supporte plusieurs mappings manette pour le bouton Start."""
-        return button in (7, 9)
+        """Supporte Start/Select (Back) selon les mappings manette."""
+        return button in (6, 7)
 
     def _reset_secret_room(self):
         """Initialise la salle secrète du niveau courant."""
@@ -259,16 +260,20 @@ class GameEngine:
 
         self.in_secret_room = True
         self.obstacles = self._create_secret_room_obstacles()
-        enemy_hitbox_w, enemy_hitbox_h = self.config.ENEMY_HITBOX_SIZES[2]
+        enemy_hitbox_w, enemy_hitbox_h = self.config.PLAYER_HITBOX_SIZES[self.ball.character_index]
+        enemy_sprite_w, enemy_sprite_h = self.config.PLAYER_SPRITE_SIZES[self.ball.character_index]
         self.ai_balls = [AIBall(
             x=self.config.PLAY_AREA_WIDTH // 2,
             y=self.config.PLAY_AREA_HEIGHT // 2 - 40,
             hp=2,
             max_hp=2,
             color=self.config.AI_BALL_COLOR_2HP,
+            enemy_type=2,
             radius=self.config.AI_BALL_RADIUS_2HP,
             hitbox_width=enemy_hitbox_w,
             hitbox_height=enemy_hitbox_h,
+            sprite_width=enemy_sprite_w,
+            sprite_height=enemy_sprite_h,
         )]
         self.missiles = []
         self.enemy_bullets = []
@@ -311,6 +316,10 @@ class GameEngine:
 
     def handle_events(self):
         """Gère les événements Pygame."""
+        # Cooldown manette pour navigation menu/pause
+        if self.menu_input_cooldown > 0:
+            self.menu_input_cooldown -= 1
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -377,9 +386,9 @@ class GameEngine:
                         self._handle_menu_keydown(pygame.K_RIGHT)
                 elif self.state == GameState.PAUSED:
                     if event.value[1] == 1:  # D-pad haut
-                        self.pause_menu_index = 0
-                    elif event.value[1] == -1:  # D-pad bas
                         self.pause_menu_index = 1
+                    elif event.value[1] == -1:  # D-pad bas
+                        self.pause_menu_index = 0
             elif event.type == pygame.JOYAXISMOTION:
                 # Stick analogique pour menu (avec cooldown pour éviter la sensibilité excessive)
                 if self.state == GameState.MENU and event.axis == 0 and self.menu_input_cooldown <= 0:  # Axe horizontal
@@ -392,10 +401,10 @@ class GameEngine:
                 # Stick analogique vertical pour menu pause
                 elif self.state == GameState.PAUSED and event.axis == 1 and self.menu_input_cooldown <= 0:  # Axe vertical
                     if event.value < -0.5:  # Haut
-                        self.pause_menu_index = 0
+                        self.pause_menu_index = 1
                         self.menu_input_cooldown = 15
                     elif event.value > 0.5:  # Bas
-                        self.pause_menu_index = 1
+                        self.pause_menu_index = 0
                         self.menu_input_cooldown = 15
 
     def _handle_menu_keydown(self, key):
@@ -498,16 +507,26 @@ class GameEngine:
         self.ball.energy -= self.config.MISSILE_ENERGY_COST
         self.ball.energy_usage_timer = 0  # Reset le timer
 
+        player_w, player_h = self.config.PLAYER_SPRITE_SIZES[self.ball.character_index]
+        missile_w = max(8, int(player_w * 0.675))  # +125% sur l'ancienne taille (30%)
+        missile_h = max(8, int(player_h * 0.675))
+
+        shoot_direction = direction
+        if direction_y != 0:
+            shoot_direction = 0  # Tir vertical pur si haut/bas maintenu
+
         # Position de départ du missile (à côté de la boule)
-        offset_x = (self.ball.half_w + self.config.MISSILE_WIDTH / 2) * direction
+        offset_x = 0 if direction_y != 0 else (self.ball.half_w + missile_w / 2) * shoot_direction
         offset_y = 0
         if direction_y != 0:
-            offset_y = (self.ball.half_h + self.config.MISSILE_HEIGHT / 2) * direction_y
+            offset_y = (self.ball.half_h + missile_h / 2) * direction_y
 
         missile = Missile(
             x=self.ball.x + offset_x,
-            y=self.ball.y + offset_y - self.config.MISSILE_HEIGHT / 2,
-            direction=direction,
+            y=self.ball.y + offset_y - missile_h / 2,
+            width=missile_w,
+            height=missile_h,
+            direction=shoot_direction,
             direction_y=direction_y,
             charged=False
         )
@@ -524,19 +543,27 @@ class GameEngine:
 
         self.rage -= self.config.RAGE_SUPER_COST
 
+        player_w, player_h = self.config.PLAYER_SPRITE_SIZES[self.ball.character_index]
+        super_w = max(20, int(player_w * 0.75))
+        super_h = max(20, int(player_h * 0.75))
+
+        shoot_direction = direction
+        if direction_y != 0:
+            shoot_direction = 0  # Super tir vertical si haut/bas maintenu
+
         # Position de départ de l'attaque orageuse
-        offset_x = (self.ball.half_w + self.config.CHARGED_MISSILE_WIDTH / 2) * direction
+        offset_x = 0 if direction_y != 0 else (self.ball.half_w + super_w / 2) * shoot_direction
         offset_y = 0
         if direction_y != 0:
-            offset_y = (self.ball.half_h + self.config.CHARGED_MISSILE_HEIGHT / 2) * direction_y
+            offset_y = (self.ball.half_h + super_h / 2) * direction_y
 
         missile = Missile(
             x=self.ball.x + offset_x,
-            y=self.ball.y + offset_y - self.config.CHARGED_MISSILE_HEIGHT / 2,
-            width=self.config.CHARGED_MISSILE_WIDTH,
-            height=self.config.CHARGED_MISSILE_HEIGHT,
+            y=self.ball.y + offset_y - super_h / 2,
+            width=super_w,
+            height=super_h,
             speed=self.config.CHARGED_MISSILE_SPEED,
-            direction=direction,
+            direction=shoot_direction,
             direction_y=direction_y,
             color=self.config.CHARGED_MISSILE_COLOR,
             charged=True
@@ -588,13 +615,13 @@ class GameEngine:
                 joy_float = True
             if self.joystick.get_button(2):  # X
                 joy_fire = True
-            if self.joystick.get_button(3):  # Y
+            if self.joystick.get_button(3):  # Y (4e touche Xbox)
                 joy_super = True
 
         # Direction de visée verticale
-        if keys[pygame.K_UP] or keys[pygame.K_w] or joy_up:
+        if keys[pygame.K_UP] or keys[pygame.K_w] or joy_down:
             self.ball.aim_direction_y = -1  # Viser vers le haut
-        elif keys[pygame.K_DOWN] or keys[pygame.K_s] or joy_down:
+        elif keys[pygame.K_DOWN] or keys[pygame.K_s] or joy_up:
             self.ball.aim_direction_y = 1  # Viser vers le bas
         else:
             self.ball.aim_direction_y = 0  # Viser horizontalement
@@ -613,11 +640,12 @@ class GameEngine:
                 self._fire_missile(self.ball.facing_direction, self.ball.aim_direction_y)
                 self.fire_cooldown = 10
 
-        # Super attaque (input de déclenchement, pas en maintien)
-        super_pressed = keys[pygame.K_c] or joy_super
+        # Super attaque uniquement sur Y manette et seulement rage pleine
+        super_pressed = joy_super
         if super_pressed and not self.super_button_was_pressed and self.super_cooldown <= 0:
-            self._fire_storm_attack(self.ball.facing_direction, self.ball.aim_direction_y)
-            self.super_cooldown = 20
+            if self.rage >= 100:
+                self._fire_storm_attack(self.ball.facing_direction, self.ball.aim_direction_y)
+                self.super_cooldown = 20
         self.super_button_was_pressed = super_pressed
 
     def update(self):
@@ -792,32 +820,30 @@ class GameEngine:
                 self.spawn_timer = 0
                 # Spawner un nouvel ennemi en haut avec HP aléatoires
                 wall = self.config.WALL_THICKNESS
-                hp = random.randint(1, 3)
-
-                # Déterminer rayon et couleur selon HP
-                if hp == 3:
-                    ball_radius = self.config.AI_BALL_RADIUS_3HP
+                enemy_type = random.randint(1, 3)
+                hp = self.config.ENEMY_TYPE_HP[enemy_type]
+                if enemy_type == 3:
                     color = self.config.AI_BALL_COLOR_3HP
-                    hitbox_w, hitbox_h = self.config.ENEMY_HITBOX_SIZES[3]
-                elif hp == 2:
-                    ball_radius = self.config.AI_BALL_RADIUS_2HP
+                elif enemy_type == 2:
                     color = self.config.AI_BALL_COLOR_2HP
-                    hitbox_w, hitbox_h = self.config.ENEMY_HITBOX_SIZES[2]
                 else:
-                    ball_radius = self.config.AI_BALL_RADIUS_1HP
                     color = self.config.AI_BALL_COLOR_1HP
-                    hitbox_w, hitbox_h = self.config.ENEMY_HITBOX_SIZES[1]
+                hitbox_w, hitbox_h = self.config.PLAYER_HITBOX_SIZES[self.ball.character_index]
+                sprite_w, sprite_h = self.config.PLAYER_SPRITE_SIZES[self.ball.character_index]
 
                 margin = hitbox_w / 2 + 10
                 new_enemy = AIBall(
                     x=random.uniform(wall + margin, self.config.PLAY_AREA_WIDTH - wall - margin),
                     y=wall + hitbox_h / 2 + 10,
-                    radius=ball_radius,
+                    radius=max(hitbox_w, hitbox_h) / 2,
                     hitbox_width=hitbox_w,
                     hitbox_height=hitbox_h,
+                    sprite_width=sprite_w,
+                    sprite_height=sprite_h,
                     vx=random.uniform(-2, 2),
                     vy=0,
                     color=color,
+                    enemy_type=enemy_type,
                     hp=hp,
                     max_hp=hp
                 )
@@ -1165,10 +1191,6 @@ class GameEngine:
 
     def render_menu(self):
         """Dessine le menu de sélection."""
-        # Décrémenter le cooldown d'input du menu
-        if self.menu_input_cooldown > 0:
-            self.menu_input_cooldown -= 1
-
         cfg = self.config
         self.renderer.draw_menu(
             self.selected_color_index,

@@ -26,7 +26,7 @@ Un jeu de plateforme 2D rapide où vous combattez des ennemis, collectez des pow
 - **Flèche Haut / Z / K** : Sauter (double saut disponible)
 - **Shift** : Flotter (descente lente)
 - **Espace** : Tirer des pommes (10 énergie)
-- **C** : Super attaque orageuse (nécessite 50% de rage)
+- **Super attaque** : Sur manette, bouton **Y** quand la rage est à 100%
 - **R** : Recommencer le niveau
 - **Échap** : Menu pause
 
@@ -35,7 +35,7 @@ Un jeu de plateforme 2D rapide où vous combattez des ennemis, collectez des pow
 - **Bouton A** : Sauter
 - **Bouton B** : Flotter
 - **Bouton X** : Tirer
-- **Bouton Y** : Super attaque
+- **Bouton Y** : Super attaque (rage pleine)
 - **Start** : Menu pause
 
 ## 📋 Prérequis
@@ -80,7 +80,7 @@ python main.py
 - **Saut sur la Tête** : Inflige 1 dégât à l'ennemi, rebond vers le haut
 - **Collision Latérale** : Perte d'1 vie (avec invincibilité temporaire)
 - **Tir** : Les projectiles de pomme infligent 1 dégât
-- **Super Orage** : À 50% de rage, déclenchez une attaque massive
+- **Super Orage** : Disponible quand la rage est à 100% (bouton Y)
 
 ## 🏗️ Structure du Projet
 
