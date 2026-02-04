@@ -5,11 +5,12 @@ Gère la boucle de jeu, les entrées et la coordination des composants.
 """
 
 from enum import Enum, auto
+import math
 import random
 import pygame
 from .config import Config
 from .physics import PhysicsEngine
-from .entities import Ball, Obstacle, MovingPlatform, AIBall, Missile, EnemyBullet, HeartPickup, Door
+from .entities import Ball, Obstacle, MovingPlatform, FragilePlatform, AIBall, Missile, EnemyBullet, HeartPickup, Door
 from .particles import ParticleSystem
 from .renderer import Renderer
 from .audio import AudioManager, SoundType
@@ -118,6 +119,14 @@ class GameEngine:
             width = random.randint(80, 180)
             self.obstacles.append(Obstacle.create_platform(x, y, width))
 
+        # Quelques plateformes fragiles (différentes visuellement et temporaires)
+        num_fragile = random.randint(1, 2)
+        for _ in range(num_fragile):
+            x = random.randint(cfg.WALL_THICKNESS + 60, cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 220)
+            y = random.randint(180, 380)
+            width = random.randint(90, 170)
+            self.obstacles.append(FragilePlatform.create(x, y, width))
+
         # Plateformes mobiles: moitié lentes, moitié rapides
         num_moving = random.randint(2, 4)
         for i in range(num_moving):
@@ -169,7 +178,11 @@ class GameEngine:
                     self._handle_menu_keydown(event.key)
                 elif self.state == GameState.PAUSED:
                     self._handle_pause_keydown(event.key)
-                else:
+                elif self.state == GameState.GAME_OVER:
+                    self._handle_game_over_keydown(event.key)
+                elif self.state == GameState.HIGHSCORES:
+                    self._handle_highscores_keydown(event.key)
+                else:  # PLAYING
                     self._handle_game_keydown(event.key)
             elif event.type == pygame.KEYUP:
                 if self.state == GameState.PLAYING:
@@ -275,12 +288,22 @@ class GameEngine:
         elif key == pygame.K_ESCAPE:
             self.state = GameState.PLAYING  # ESC pour reprendre directement
 
+    def _handle_game_over_keydown(self, key):
+        """Gère les touches du game over."""
+        if self.game_over_timer >= 120:
+            self.state = GameState.HIGHSCORES
+            self.game_over_timer = 0
+
+    def _handle_highscores_keydown(self, key):
+        """Gère les touches de l'écran high scores."""
+        self.state = GameState.MENU
+
     def _handle_game_keydown(self, key):
         """Gère les touches du jeu."""
         if key == pygame.K_ESCAPE:
             self.state = GameState.PAUSED  # ESC met en pause maintenant
             self.pause_menu_index = 0
-        elif key == pygame.K_z or key == pygame.K_k:
+        elif key in (pygame.K_UP, pygame.K_w, pygame.K_z, pygame.K_k):
             # Vérifier si un saut est possible et quel type
             can_jump = self.ball.can_jump()
             will_be_double = self.ball.is_double_jump()
@@ -300,13 +323,22 @@ class GameEngine:
         elif key == pygame.K_r:
             self._create_level()  # Reset
             self.particles.clear()
+            self.missiles = []
+            self.enemy_bullets = []
+            self.heart_pickups = []
+            self.spawn_timer = 0
+            self.heart_spawn_timer = 0
+            self.enemies_defeated = 0
 
     def _start_game(self):
         """Démarre le jeu avec la couleur sélectionnée."""
         self._create_level()
         self.particles.clear()
         self.missiles = []
+        self.enemy_bullets = []
+        self.heart_pickups = []
         self.spawn_timer = 0
+        self.heart_spawn_timer = 0
         self.enemies_defeated = 0  # Reset le compteur
         self.current_level = 1  # Reset le niveau
         self.state = GameState.PLAYING
@@ -486,11 +518,11 @@ class GameEngine:
             self.audio.play(SoundType.LIFE_LOST, 1.0)
             # Grande explosion de particules
             for _ in range(30):
-                angle = random.uniform(0, 2 * 3.14159)
+                angle = random.uniform(0, 2 * math.pi)
                 speed = random.uniform(2, 8)
                 self.particles.spawn_directional(
                     self.ball.x, self.ball.y,
-                    speed * (angle % 1), speed * ((angle + 1) % 1), 5.0
+                    math.cos(angle) * speed, math.sin(angle) * speed, 5.0
                 )
             return  # Arrêter la mise à jour
 
@@ -515,6 +547,8 @@ class GameEngine:
 
             # Vérifier collision avec obstacles
             for obstacle in self.obstacles:
+                if not obstacle.is_solid():
+                    continue
                 if missile.check_obstacle_collision(obstacle):
                     missile.active = False
                     # Si missile chargé, créer une explosion
@@ -659,6 +693,8 @@ class GameEngine:
 
             # Vérifier collision avec les obstacles (plateformes)
             for obstacle in self.obstacles:
+                if not obstacle.is_solid():
+                    continue
                 if bullet.check_obstacle_collision(obstacle):
                     bullet.active = False
                     break

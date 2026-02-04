@@ -186,9 +186,10 @@ class Ball:
 
         # Collision avec les obstacles
         for obs in obstacles:
+            if not obs.is_solid():
+                continue
+
             old_x, old_y = self.x, self.y
-            # Sauvegarder la position de l'obstacle avant collision
-            old_obs_x = obs.x if hasattr(obs, 'min_x') else None  # Plateforme mobile
 
             self.x, self.y, self.vx, self.vy, hit, on_top = \
                 physics.check_rect_collision(
@@ -209,6 +210,9 @@ class Ball:
                     # Calculer le déplacement de la plateforme depuis le dernier frame
                     platform_dx = obs.speed * obs.direction
                     self.x += platform_dx  # Suivre la plateforme
+
+                if on_top:
+                    obs.on_player_step()
 
             if on_top:
                 self.on_ground = True
@@ -260,6 +264,14 @@ class Obstacle:
         """Met à jour l'obstacle (pour sous-classes)."""
         pass
 
+    def is_solid(self) -> bool:
+        """Retourne True si l'obstacle participe aux collisions."""
+        return True
+
+    def on_player_step(self):
+        """Hook appelé quand le joueur atterrit sur l'obstacle."""
+        pass
+
     @classmethod
     def create_platform(cls, x: float, y: float, width: float) -> 'Obstacle':
         """Crée une plateforme statique (obstacle horizontal fin)."""
@@ -269,6 +281,61 @@ class Obstacle:
     def create_block(cls, x: float, y: float, size: float) -> 'Obstacle':
         """Crée un bloc carré."""
         return cls(x=x, y=y, width=size, height=size)
+
+
+@dataclass
+class FragilePlatform(Obstacle):
+    """Plateforme fragile qui casse temporairement au contact du joueur."""
+
+    break_delay: int = Config.FRAGILE_PLATFORM_BREAK_DELAY
+    respawn_time: int = Config.FRAGILE_PLATFORM_RESPAWN_TIME
+    step_timer: int = 0
+    broken: bool = False
+    respawn_timer: int = 0
+    stepped_this_frame: bool = False
+
+    def update(self):
+        """Met à jour la casse et la réapparition de la plateforme."""
+        if self.broken:
+            self.respawn_timer += 1
+            if self.respawn_timer >= self.respawn_time:
+                self.broken = False
+                self.respawn_timer = 0
+                self.step_timer = 0
+            self.stepped_this_frame = False
+            return
+
+        if self.stepped_this_frame:
+            self.step_timer += 1
+        else:
+            self.step_timer = 0
+
+        if self.step_timer >= self.break_delay:
+            self.broken = True
+            self.respawn_timer = 0
+            self.step_timer = 0
+
+        self.stepped_this_frame = False
+
+    def is_solid(self) -> bool:
+        """La plateforme ne collabore pas aux collisions quand elle est cassée."""
+        return not self.broken
+
+    def on_player_step(self):
+        """Démarre le compte à rebours de casse au premier contact."""
+        if not self.broken:
+            self.stepped_this_frame = True
+
+    @classmethod
+    def create(cls, x: float, y: float, width: float) -> 'FragilePlatform':
+        """Crée une plateforme fragile."""
+        return cls(
+            x=x,
+            y=y,
+            width=width,
+            height=20,
+            color=Config.COLOR_PLATFORM_FRAGILE
+        )
 
 
 @dataclass
@@ -355,6 +422,9 @@ class AIBall:
 
         # Collision avec les obstacles
         for obs in obstacles:
+            if not obs.is_solid():
+                continue
+
             self.x, self.y, self.vx, self.vy, hit, on_top = \
                 physics.check_rect_collision(
                     self.x, self.y, self.radius,

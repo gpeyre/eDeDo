@@ -10,17 +10,18 @@ Un jeu de plateforme 2D rapide où vous combattez des ennemis, collectez des pow
 
 - **Combat Dynamique** : Sautez sur la tête des ennemis pour les blesser, ou tirez-leur dessus avec des pommes
 - **Variété d'Ennemis** : Trois types d'ennemis avec 1, 2 ou 3 PV (Bleu, Violet, Rouge)
-- **Difficulté Progressive** : Battez 15 ennemis pour débloquer un portail vers le niveau suivant
+- **Difficulté Progressive** : Battez 10 ennemis pour débloquer un portail vers le niveau suivant
 - **Génération Procédurale** : Chaque niveau propose des plateformes et obstacles générés aléatoirement
+- **Plateformes Fragiles** : Certaines plateformes bleutées se brisent sous vos pieds puis réapparaissent
 - **Système d'Énergie** : Gérez votre énergie pour les doubles sauts, le flottement et les tirs
-- **Système de Vies** : Commencez avec 5 vies, collectez des cœurs pour récupérer
+- **Système de Vies** : Chaque personnage a son propre maximum de vies, collectez des cœurs pour récupérer
 - **Support Manette** : Support complet de manette avec contrôles intuitifs
 
 ## 🎮 Contrôles
 
 ### Clavier
 - **Flèches / WASD** : Déplacer gauche/droite
-- **Flèche Haut / Espace** : Sauter (double saut disponible)
+- **Flèche Haut / Z / K** : Sauter (double saut disponible)
 - **Shift** : Flotter (descente lente)
 - **Espace (maintenir)** : Tirer des pommes / Charger le super tir
 - **R** : Recommencer le niveau
@@ -62,8 +63,8 @@ python main.py
 1. **Choisissez Votre Couleur** : Sélectionnez la couleur de votre boule au départ
 2. **Combattez les Ennemis** : Sautez sur leur tête ou tirez-leur dessus avec des pommes
 3. **Gérez l'Énergie** : Votre énergie se régénère après 1 seconde sans l'utiliser (60%/s)
-4. **Collectez des Cœurs** : Restaurez vos vies quand vous en avez moins de 5
-5. **Atteignez l'Objectif** : Battez 15 ennemis pour ouvrir le portail
+4. **Collectez des Cœurs** : Restaurez vos vies jusqu'au maximum de votre personnage
+5. **Atteignez l'Objectif** : Battez 10 ennemis pour ouvrir le portail
 6. **Progressez** : Entrez dans le portail pour générer un nouveau niveau
 
 ### Types d'Ennemis

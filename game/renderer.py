@@ -6,7 +6,7 @@ Gère l'affichage de tous les éléments visuels.
 
 import pygame
 from .config import Config
-from .entities import Ball, Obstacle, MovingPlatform, AIBall, Missile
+from .entities import Ball, Obstacle, FragilePlatform, AIBall, Missile
 from .particles import ParticleSystem
 
 
@@ -113,6 +113,9 @@ class Renderer:
 
     def draw_obstacle(self, obstacle: Obstacle):
         """Dessine un obstacle."""
+        if not obstacle.is_solid():
+            return
+
         x, y, w, h = int(obstacle.x), int(obstacle.y), obstacle.width, obstacle.height
 
         # Remplir avec la couleur de base (marron selon le type)
@@ -122,6 +125,13 @@ class Renderer:
         r, g, b = obstacle.color
         border_color = (max(0, r - 30), max(0, g - 30), max(0, b - 30))
         pygame.draw.rect(self.screen, border_color, (x, y, w, h), 2)
+
+        # Marquage visuel des plateformes fragiles (fissures)
+        if isinstance(obstacle, FragilePlatform):
+            crack_color = (240, 245, 255)
+            pygame.draw.line(self.screen, crack_color, (x + 10, y + 6), (x + 25, y + h - 4), 2)
+            pygame.draw.line(self.screen, crack_color, (x + w // 2 - 5, y + 4), (x + w // 2 + 6, y + h - 5), 2)
+            pygame.draw.line(self.screen, crack_color, (x + w - 25, y + 5), (x + w - 10, y + h - 4), 2)
 
     def draw_obstacles(self, obstacles: list[Obstacle]):
         """Dessine tous les obstacles."""
@@ -419,7 +429,7 @@ class Renderer:
 
         # Instructions ligne 1 - Clavier
         text1 = font.render(
-            "Fleches/WASD: Bouger | Espace: Tirer | Haut: Sauter | Shift: Flotter",
+            "Fleches/WASD: Bouger | Haut/Z/K: Sauter | Shift: Flotter | Espace: Tirer",
             True, (200, 200, 200)
         )
         self.screen.blit(text1, (10, self.config.WINDOW_HEIGHT - 55))
@@ -567,9 +577,9 @@ class Renderer:
 
         goal_lines = [
             "• Battez les ennemis en sautant sur leur tête ou en tirant des pommes",
-            "• Vainquez 15 ennemis pour débloquer la porte vers le niveau suivant",
+            f"• Vainquez {cfg.ENEMIES_TO_WIN} ennemis pour débloquer la porte vers le niveau suivant",
             "• Gérez votre énergie pour le double saut, le flottement et les tirs",
-            "• Collectez des coeurs pour récupérer vos vies (max 5)"
+            f"• Collectez des coeurs pour récupérer vos vies (max {max(stats[0] for stats in cfg.PLAYER_STATS)})"
         ]
         for line in goal_lines:
             text = text_font.render(line, True, (180, 180, 180))
@@ -584,8 +594,8 @@ class Renderer:
         y_pos += 40
 
         keyboard_controls = [
-            "Flèches/WASD: Déplacer  |  Haut/Espace: Sauter (double saut)",
-            "Shift: Flotter  |  Espace (maintenir): Tirer / Charger super-tir",
+            "Flèches/WASD: Déplacer  |  Haut/Z/K: Sauter (double saut)",
+            "Shift: Flotter  |  Espace: Tirer / Charger super-tir",
             "ESC: Pause  |  R: Recommencer le niveau"
         ]
         for line in keyboard_controls:

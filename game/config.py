@@ -62,8 +62,11 @@ class Config:
     COLOR_PLATFORM_STATIC = (101, 67, 33)   # Marron foncé
     COLOR_PLATFORM_SLOW = (139, 90, 43)     # Marron moyen
     COLOR_PLATFORM_FAST = (205, 133, 63)    # Marron clair
+    COLOR_PLATFORM_FRAGILE = (120, 180, 210)  # Bleu-gris pour plateformes fragiles
     MOVING_PLATFORM_SPEED_SLOW = 1.0
     MOVING_PLATFORM_SPEED_FAST = 3.5
+    FRAGILE_PLATFORM_BREAK_DELAY = 20  # Frames sur la plateforme avant qu'elle casse
+    FRAGILE_PLATFORM_RESPAWN_TIME = 180  # Frames avant réapparition (3 secondes)
 
     # Boules IA
     AI_BALL_RADIUS = 14
