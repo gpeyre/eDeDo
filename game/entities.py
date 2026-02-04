@@ -16,7 +16,10 @@ class Ball:
 
     x: float
     y: float
-    radius: float = Config.BALL_RADIUS
+    radius: float = Config.BALL_RADIUS  # Compat legacy (utilisé pour certains effets)
+    hitbox_width: float = Config.PLAYER_HITBOX_SIZES[1][0]
+    hitbox_height: float = Config.PLAYER_HITBOX_SIZES[1][1]
+    character_index: int = 1
     vx: float = 0.0
     vy: float = 0.0
     on_ground: bool = False
@@ -35,6 +38,19 @@ class Ball:
     speed_multiplier: float = 1.0  # Multiplicateur de vitesse (varie selon le personnage)
     jump_multiplier: float = 1.0  # Multiplicateur de force de saut (varie selon le personnage)
     aim_direction_y: int = 0  # Direction de visée verticale: -1 = haut, 0 = horizontal, 1 = bas
+    rage_boost_active: bool = False
+
+    @property
+    def half_w(self) -> float:
+        return self.hitbox_width / 2
+
+    @property
+    def half_h(self) -> float:
+        return self.hitbox_height / 2
+
+    @property
+    def visual_radius(self) -> float:
+        return max(self.half_w, self.half_h)
 
     def can_jump(self) -> bool:
         """Vérifie si la boule peut sauter."""
@@ -156,10 +172,11 @@ class Ball:
             self.vx *= cfg.FRICTION
 
         # Limiter la vitesse horizontale strictement
-        if self.vx > cfg.MAX_SPEED:
-            self.vx = cfg.MAX_SPEED
-        elif self.vx < -cfg.MAX_SPEED:
-            self.vx = -cfg.MAX_SPEED
+        current_max_speed = cfg.MAX_SPEED_RAGE if self.rage_boost_active else cfg.MAX_SPEED
+        if self.vx > current_max_speed:
+            self.vx = current_max_speed
+        elif self.vx < -current_max_speed:
+            self.vx = -current_max_speed
 
         # Mettre à jour position
         self.x += self.vx
@@ -168,8 +185,8 @@ class Ball:
         # Collision avec les murs
         old_x, old_y = self.x, self.y
         self.x, self.y, self.vx, self.vy, self.on_ground, self.on_wall = \
-            physics.check_wall_collision(
-                self.x, self.y, self.radius, self.vx, self.vy
+            physics.check_wall_collision_ellipse(
+                self.x, self.y, self.half_w, self.half_h, self.vx, self.vy
             )
 
         # Détecter collision mur
@@ -192,8 +209,8 @@ class Ball:
             old_x, old_y = self.x, self.y
 
             self.x, self.y, self.vx, self.vy, hit, on_top = \
-                physics.check_rect_collision(
-                    self.x, self.y, self.radius,
+                physics.check_rect_collision_ellipse(
+                    self.x, self.y, self.half_w, self.half_h,
                     self.vx, self.vy,
                     obs.x, obs.y, obs.width, obs.height
                 )
@@ -230,7 +247,7 @@ class Ball:
                     # Petite particule de fumée derrière
                     collisions.append((
                         self.x - self.vx * 2,  # Derrière la boule
-                        self.y + self.radius * 0.8,  # Près du sol
+                        self.y + self.half_h * 0.8,  # Près du sol
                         0, -0.3, 0.3  # Très petite intensité
                     ))
 
@@ -240,7 +257,7 @@ class Ball:
             if self.walk_particle_timer >= 6:  # Un peu plus fréquent que au sol
                 self.walk_particle_timer = 0
                 # Particule sur le côté du mur
-                wall_x = self.x + self.radius * self.on_wall  # Position du mur
+                wall_x = self.x + self.half_w * self.on_wall  # Position du mur
                 collisions.append((
                     wall_x,
                     self.y,
@@ -345,6 +362,8 @@ class AIBall:
     x: float
     y: float
     radius: float = Config.AI_BALL_RADIUS
+    hitbox_width: float = Config.ENEMY_HITBOX_SIZES[1][0]
+    hitbox_height: float = Config.ENEMY_HITBOX_SIZES[1][1]
     vx: float = 0.0
     vy: float = 0.0
     color: tuple = field(default_factory=lambda: Config.AI_BALL_COLOR_1HP)
@@ -352,22 +371,32 @@ class AIBall:
     max_hp: int = 1  # HP initiaux (pour déterminer la taille)
     on_ground: bool = False
     shoot_timer: int = 0  # Timer pour tirer
+    facing_direction: int = 1  # 1 = droite, -1 = gauche
 
     def update_size(self):
-        """Met à jour la taille selon les HP actuels (mais garde la couleur initiale)."""
-        # La taille change selon les HP actuels
-        if self.hp >= 3:
+        """Met à jour la hitbox selon le type d'ennemi (max_hp)."""
+        if self.max_hp >= 3:
             self.radius = Config.AI_BALL_RADIUS_3HP
-        elif self.hp == 2:
+            self.hitbox_width, self.hitbox_height = Config.ENEMY_HITBOX_SIZES[3]
+        elif self.max_hp == 2:
             self.radius = Config.AI_BALL_RADIUS_2HP
+            self.hitbox_width, self.hitbox_height = Config.ENEMY_HITBOX_SIZES[2]
         else:
             self.radius = Config.AI_BALL_RADIUS_1HP
-        # La couleur reste inchangée (couleur initiale = type d'ennemi)
+            self.hitbox_width, self.hitbox_height = Config.ENEMY_HITBOX_SIZES[1]
+
+    @property
+    def half_w(self) -> float:
+        return self.hitbox_width / 2
+
+    @property
+    def half_h(self) -> float:
+        return self.hitbox_height / 2
 
     @property
     def mass(self) -> float:
         """Masse proportionnelle au rayon."""
-        return self.radius ** 2
+        return self.half_w * self.half_h
 
     def update(self, physics: PhysicsEngine, obstacles: list['Obstacle']):
         """Met à jour la boule IA avec comportement variant selon la couleur/HP."""
@@ -409,6 +438,10 @@ class AIBall:
         # Limiter la vitesse horizontale selon le type
         max_speed = cfg.AI_BALL_SPEED * 2 * speed_multiplier
         self.vx = max(-max_speed, min(max_speed, self.vx))
+        if self.vx > 0.2:
+            self.facing_direction = 1
+        elif self.vx < -0.2:
+            self.facing_direction = -1
 
         # Mettre à jour position
         self.x += self.vx
@@ -416,8 +449,8 @@ class AIBall:
 
         # Collision avec les murs
         self.x, self.y, self.vx, self.vy, self.on_ground, _ = \
-            physics.check_wall_collision(
-                self.x, self.y, self.radius, self.vx, self.vy
+            physics.check_wall_collision_ellipse(
+                self.x, self.y, self.half_w, self.half_h, self.vx, self.vy
             )
 
         # Collision avec les obstacles
@@ -426,8 +459,8 @@ class AIBall:
                 continue
 
             self.x, self.y, self.vx, self.vy, hit, on_top = \
-                physics.check_rect_collision(
-                    self.x, self.y, self.radius,
+                physics.check_rect_collision_ellipse(
+                    self.x, self.y, self.half_w, self.half_h,
                     self.vx, self.vy,
                     obs.x, obs.y, obs.width, obs.height
                 )
@@ -438,7 +471,6 @@ class AIBall:
     def create_random(cls, config: Config, index: int) -> 'AIBall':
         """Crée une boule IA à une position aléatoire avec couleur et HP aléatoires."""
         wall = config.WALL_THICKNESS
-        margin = config.AI_BALL_RADIUS + 10
 
         # Choisir aléatoirement les HP initiaux (1, 2 ou 3)
         hp = random.randint(1, 3)
@@ -447,22 +479,29 @@ class AIBall:
         if hp == 3:
             ball_radius = config.AI_BALL_RADIUS_3HP
             color = config.AI_BALL_COLOR_3HP
+            hitbox_w, hitbox_h = config.ENEMY_HITBOX_SIZES[3]
         elif hp == 2:
             ball_radius = config.AI_BALL_RADIUS_2HP
             color = config.AI_BALL_COLOR_2HP
+            hitbox_w, hitbox_h = config.ENEMY_HITBOX_SIZES[2]
         else:
             ball_radius = config.AI_BALL_RADIUS_1HP
             color = config.AI_BALL_COLOR_1HP
+            hitbox_w, hitbox_h = config.ENEMY_HITBOX_SIZES[1]
 
+        initial_vx = random.uniform(-2, 2)
         return cls(
-            x=random.uniform(wall + ball_radius + 10, config.WINDOW_WIDTH - wall - ball_radius - 10),
-            y=random.uniform(wall + ball_radius + 10, config.WINDOW_HEIGHT // 2),
+            x=random.uniform(wall + hitbox_w / 2 + 10, config.PLAY_AREA_WIDTH - wall - hitbox_w / 2 - 10),
+            y=random.uniform(wall + hitbox_h / 2 + 10, config.PLAY_AREA_HEIGHT // 2),
             radius=ball_radius,
-            vx=random.uniform(-2, 2),
+            hitbox_width=hitbox_w,
+            hitbox_height=hitbox_h,
+            vx=initial_vx,
             vy=0,
             color=color,
             hp=hp,
-            max_hp=hp
+            max_hp=hp,
+            facing_direction=1 if initial_vx >= 0 else -1
         )
 
 
@@ -485,14 +524,15 @@ class EnemyBullet:
 
         # Désactiver si hors écran
         wall = config.WALL_THICKNESS
-        if (self.x < wall - self.radius or self.x > config.WINDOW_WIDTH - wall + self.radius or
-            self.y < wall - self.radius or self.y > config.WINDOW_HEIGHT - wall + self.radius):
+        if (self.x < wall - self.radius or self.x > config.PLAY_AREA_WIDTH - wall + self.radius or
+            self.y < wall - self.radius or self.y > config.PLAY_AREA_HEIGHT - wall + self.radius):
             self.active = False
 
-    def check_collision(self, ball_x: float, ball_y: float, ball_radius: float) -> bool:
-        """Vérifie la collision avec une boule."""
-        distance = ((self.x - ball_x) ** 2 + (self.y - ball_y) ** 2) ** 0.5
-        return distance < self.radius + ball_radius
+    def check_collision(self, ball_x: float, ball_y: float, half_w: float, half_h: float) -> bool:
+        """Vérifie la collision avec une hitbox elliptique."""
+        ndx = (self.x - ball_x) / max(half_w + self.radius, 1e-6)
+        ndy = (self.y - ball_y) / max(half_h + self.radius, 1e-6)
+        return ndx * ndx + ndy * ndy < 1.0
 
     def check_obstacle_collision(self, obstacle) -> bool:
         """Vérifie la collision avec un obstacle (plateforme)."""
@@ -523,13 +563,14 @@ class HeartPickup:
         self.y += self.vy
 
         # Désactiver si hors écran
-        if self.y > config.WINDOW_HEIGHT:
+        if self.y > config.PLAY_AREA_HEIGHT:
             self.active = False
 
-    def check_collision(self, ball_x: float, ball_y: float, ball_radius: float) -> bool:
-        """Vérifie la collision avec le joueur."""
-        distance = ((self.x - ball_x) ** 2 + (self.y - ball_y) ** 2) ** 0.5
-        return distance < self.size + ball_radius
+    def check_collision(self, ball_x: float, ball_y: float, half_w: float, half_h: float) -> bool:
+        """Vérifie la collision avec le joueur (ellipse approximative)."""
+        ndx = (self.x - ball_x) / max(half_w + self.size, 1e-6)
+        ndy = (self.y - ball_y) / max(half_h + self.size, 1e-6)
+        return ndx * ndx + ndy * ndy < 1.0
 
 
 @dataclass
@@ -556,29 +597,24 @@ class Missile:
         # Les missiles chargés traversent les murs, les normaux non
         if not self.charged:
             wall = config.WALL_THICKNESS
-            if self.x < wall or self.x > config.WINDOW_WIDTH - wall:
+            if self.x < wall or self.x > config.PLAY_AREA_WIDTH - wall:
                 self.active = False
-            if self.y < wall or self.y > config.WINDOW_HEIGHT - wall:
+            if self.y < wall or self.y > config.PLAY_AREA_HEIGHT - wall:
                 self.active = False
         else:
             # Désactiver le missile chargé seulement s'il sort complètement de l'écran
-            if self.x + self.width < 0 or self.x > config.WINDOW_WIDTH:
+            if self.x + self.width < 0 or self.x > config.PLAY_AREA_WIDTH:
                 self.active = False
-            if self.y + self.height < 0 or self.y > config.WINDOW_HEIGHT:
+            if self.y + self.height < 0 or self.y > config.PLAY_AREA_HEIGHT:
                 self.active = False
 
-    def check_collision(self, ball_x: float, ball_y: float, ball_radius: float) -> bool:
-        """Vérifie la collision avec une boule."""
-        # Point le plus proche du rectangle au centre de la boule
+    def check_collision(self, ball_x: float, ball_y: float, half_w: float, half_h: float) -> bool:
+        """Vérifie la collision missile (rect) vs ellipse."""
         closest_x = max(self.x, min(ball_x, self.x + self.width))
         closest_y = max(self.y, min(ball_y, self.y + self.height))
-
-        # Distance entre le point le plus proche et le centre de la boule
-        distance_x = ball_x - closest_x
-        distance_y = ball_y - closest_y
-        distance_squared = distance_x * distance_x + distance_y * distance_y
-
-        return distance_squared < (ball_radius * ball_radius)
+        ndx = (ball_x - closest_x) / max(half_w, 1e-6)
+        ndy = (ball_y - closest_y) / max(half_h, 1e-6)
+        return ndx * ndx + ndy * ndy < 1.0
 
     def check_obstacle_collision(self, obstacle) -> bool:
         """Vérifie la collision avec un obstacle."""
@@ -657,18 +693,13 @@ class Door:
     color: tuple = (255, 215, 0)  # Or
     active: bool = False  # La porte n'est active que quand assez d'ennemis sont vaincus
 
-    def check_collision(self, ball_x: float, ball_y: float, ball_radius: float) -> bool:
+    def check_collision(self, ball_x: float, ball_y: float, half_w: float, half_h: float) -> bool:
         """Vérifie si le joueur touche la porte."""
         if not self.active:
             return False
 
-        # Point le plus proche du rectangle au centre de la boule
         closest_x = max(self.x, min(ball_x, self.x + self.width))
         closest_y = max(self.y, min(ball_y, self.y + self.height))
-
-        # Distance entre le point le plus proche et le centre de la boule
-        distance_x = ball_x - closest_x
-        distance_y = ball_y - closest_y
-        distance_squared = distance_x * distance_x + distance_y * distance_y
-
-        return distance_squared < (ball_radius * ball_radius)
+        ndx = (ball_x - closest_x) / max(half_w, 1e-6)
+        ndy = (ball_y - closest_y) / max(half_h, 1e-6)
+        return ndx * ndx + ndy * ndy < 1.0

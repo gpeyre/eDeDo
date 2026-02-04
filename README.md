@@ -13,7 +13,9 @@ Un jeu de plateforme 2D rapide où vous combattez des ennemis, collectez des pow
 - **Difficulté Progressive** : Battez 10 ennemis pour débloquer un portail vers le niveau suivant
 - **Génération Procédurale** : Chaque niveau propose des plateformes et obstacles générés aléatoirement
 - **Plateformes Fragiles** : Certaines plateformes bleutées se brisent sous vos pieds puis réapparaissent
+- **Salle Secrète** : Un pan de mur cache une salle bonus avec un ennemi à vaincre pour gagner une vie
 - **Système d'Énergie** : Gérez votre énergie pour les doubles sauts, le flottement et les tirs
+- **Système de Rage** : Touchez les ennemis pour charger la rage et déclencher une super attaque orageuse
 - **Système de Vies** : Chaque personnage a son propre maximum de vies, collectez des cœurs pour récupérer
 - **Support Manette** : Support complet de manette avec contrôles intuitifs
 
@@ -23,7 +25,8 @@ Un jeu de plateforme 2D rapide où vous combattez des ennemis, collectez des pow
 - **Flèches / WASD** : Déplacer gauche/droite
 - **Flèche Haut / Z / K** : Sauter (double saut disponible)
 - **Shift** : Flotter (descente lente)
-- **Espace (maintenir)** : Tirer des pommes / Charger le super tir
+- **Espace** : Tirer des pommes (10 énergie)
+- **C** : Super attaque orageuse (nécessite 50% de rage)
 - **R** : Recommencer le niveau
 - **Échap** : Menu pause
 
@@ -31,7 +34,8 @@ Un jeu de plateforme 2D rapide où vous combattez des ennemis, collectez des pow
 - **Stick Gauche / D-Pad** : Déplacer
 - **Bouton A** : Sauter
 - **Bouton B** : Flotter
-- **Bouton X** : Tirer / Charger
+- **Bouton X** : Tirer
+- **Bouton Y** : Super attaque
 - **Start** : Menu pause
 
 ## 📋 Prérequis
@@ -76,7 +80,7 @@ python main.py
 - **Saut sur la Tête** : Inflige 1 dégât à l'ennemi, rebond vers le haut
 - **Collision Latérale** : Perte d'1 vie (avec invincibilité temporaire)
 - **Tir** : Les projectiles de pomme infligent 1 dégât
-- **Tir Chargé** : Maintenez pour charger un puissant projectile de fraise qui **traverse tout**
+- **Super Orage** : À 50% de rage, déclenchez une attaque massive
 
 ## 🏗️ Structure du Projet
 
@@ -139,7 +143,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à soumettre une Pull Req
 
 ## 🎨 Crédits
 
-- **Design & Développement du Jeu** : Arthur et Camille Peyré Giuchaoua
+- **Design & Développement du Jeu** : Arthur et Camille Giuchaoua
 - **Audio** : Généré procéduralement avec NumPy
 - **Graphismes** : Rendu programmatique avec Pygame
 

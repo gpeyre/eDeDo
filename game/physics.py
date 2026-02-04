@@ -37,6 +37,142 @@ class PhysicsEngine:
             return Vector2(velocity.x * self.config.FRICTION, velocity.y)
         return velocity
 
+    def check_wall_collision_ellipse(
+        self,
+        x: float,
+        y: float,
+        half_w: float,
+        half_h: float,
+        vx: float,
+        vy: float
+    ) -> tuple[float, float, float, float, bool, int]:
+        """Collision murs/plafond/sol pour une hitbox elliptique."""
+        cfg = self.config
+        bounce = cfg.BOUNCE_FACTOR
+        wall = cfg.WALL_THICKNESS
+
+        on_ground = False
+        on_wall = 0
+
+        if x - half_w < wall:
+            x = wall + half_w
+            vx = -vx * bounce
+            on_wall = -1
+
+        if x + half_w > cfg.PLAY_AREA_WIDTH - wall:
+            x = cfg.PLAY_AREA_WIDTH - wall - half_w
+            vx = -vx * bounce
+            on_wall = 1
+
+        if y - half_h < wall:
+            y = wall + half_h
+            vy = -vy * bounce
+
+        if y + half_h > cfg.PLAY_AREA_HEIGHT - wall:
+            y = cfg.PLAY_AREA_HEIGHT - wall - half_h
+            vy = 0
+            on_ground = True
+
+        return x, y, vx, vy, on_ground, on_wall
+
+    def check_rect_collision_ellipse(
+        self,
+        x: float,
+        y: float,
+        half_w: float,
+        half_h: float,
+        vx: float,
+        vy: float,
+        rect_x: float,
+        rect_y: float,
+        rect_w: float,
+        rect_h: float
+    ) -> tuple[float, float, float, float, bool, bool]:
+        """
+        Collision ellipse vs rectangle axis-alignée.
+
+        Retourne: (new_x, new_y, new_vx, new_vy, hit, on_top)
+        """
+        bounce = self.config.BOUNCE_FACTOR
+        closest_x = max(rect_x, min(x, rect_x + rect_w))
+        closest_y = max(rect_y, min(y, rect_y + rect_h))
+
+        dx = x - closest_x
+        dy = y - closest_y
+        ndx = dx / max(half_w, 1e-6)
+        ndy = dy / max(half_h, 1e-6)
+        distance_sq = ndx * ndx + ndy * ndy
+
+        if distance_sq < 1.0:
+            distance = distance_sq ** 0.5 if distance_sq > 0 else 1e-6
+            nx = ndx / distance
+            ny = ndy / distance
+            overlap = 1.0 - distance
+
+            new_x = x + nx * overlap * half_w
+            new_y = y + ny * overlap * half_h
+
+            if abs(nx * half_w) > abs(ny * half_h):
+                vx = -vx * bounce
+            else:
+                vy = 0
+
+            on_top = ny < -0.5
+            return new_x, new_y, vx, vy, True, on_top
+
+        return x, y, vx, vy, False, False
+
+    def check_ellipse_collision(
+        self,
+        x1: float, y1: float, hw1: float, hh1: float, vx1: float, vy1: float, m1: float,
+        x2: float, y2: float, hw2: float, hh2: float, vx2: float, vy2: float, m2: float
+    ) -> tuple[float, float, float, float, float, float, float, float, bool]:
+        """Résout une collision approximative entre deux ellipses."""
+        sx = max(hw1 + hw2, 1e-6)
+        sy = max(hh1 + hh2, 1e-6)
+        ndx = (x2 - x1) / sx
+        ndy = (y2 - y1) / sy
+        dist_sq = ndx * ndx + ndy * ndy
+
+        if dist_sq < 1.0 and dist_sq > 0:
+            dist = dist_sq ** 0.5
+            nx = ndx / dist
+            ny = ndy / dist
+            overlap = 1.0 - dist
+
+            # Séparation dans l'espace réel
+            sep_x = nx * overlap * sx
+            sep_y = ny * overlap * sy
+            x1 -= sep_x * 0.5
+            y1 -= sep_y * 0.5
+            x2 += sep_x * 0.5
+            y2 += sep_y * 0.5
+
+            # Vitesse relative en espace réel
+            real_nx = nx * sx
+            real_ny = ny * sy
+            n_len = (real_nx * real_nx + real_ny * real_ny) ** 0.5
+            if n_len > 0:
+                real_nx /= n_len
+                real_ny /= n_len
+                dvx = vx1 - vx2
+                dvy = vy1 - vy2
+                dvn = dvx * real_nx + dvy * real_ny
+
+                if dvn > 0:
+                    bounce = self.config.BALL_BOUNCE_FACTOR
+                    total_mass = m1 + m2
+                    factor1 = (2 * m2 / total_mass) * dvn * bounce
+                    factor2 = (2 * m1 / total_mass) * dvn * bounce
+                    vx1 -= factor1 * real_nx
+                    vy1 -= factor1 * real_ny
+                    vx2 += factor2 * real_nx
+                    vy2 += factor2 * real_ny
+
+            return x1, y1, vx1, vy1, x2, y2, vx2, vy2, True
+
+        return x1, y1, vx1, vy1, x2, y2, vx2, vy2, False
+
     def check_wall_collision(
         self,
         x: float,
@@ -52,37 +188,7 @@ class PhysicsEngine:
             (new_x, new_y, new_vx, new_vy, on_ground, on_wall)
             on_wall: -1 = mur gauche, 0 = pas de mur, 1 = mur droit
         """
-        cfg = self.config
-        bounce = cfg.BOUNCE_FACTOR
-        wall = cfg.WALL_THICKNESS
-
-        on_ground = False
-        on_wall = 0
-
-        # Mur gauche
-        if x - radius < wall:
-            x = wall + radius
-            vx = -vx * bounce
-            on_wall = -1
-
-        # Mur droit
-        if x + radius > cfg.WINDOW_WIDTH - wall:
-            x = cfg.WINDOW_WIDTH - wall - radius
-            vx = -vx * bounce
-            on_wall = 1
-
-        # Plafond
-        if y - radius < wall:
-            y = wall + radius
-            vy = -vy * bounce
-
-        # Sol (pas de rebond)
-        if y + radius > cfg.WINDOW_HEIGHT - wall:
-            y = cfg.WINDOW_HEIGHT - wall - radius
-            vy = 0  # Pas de rebond au sol
-            on_ground = True
-
-        return x, y, vx, vy, on_ground, on_wall
+        return self.check_wall_collision_ellipse(x, y, radius, radius, vx, vy)
 
     def check_rect_collision(
         self,
@@ -102,40 +208,9 @@ class PhysicsEngine:
         Returns:
             (new_vx, new_vy, collision_occurred, on_top)
         """
-        bounce = self.config.BOUNCE_FACTOR
-
-        # Trouver le point le plus proche du rectangle
-        closest_x = max(rect_x, min(ball_x, rect_x + rect_w))
-        closest_y = max(rect_y, min(ball_y, rect_y + rect_h))
-
-        # Distance entre la boule et ce point
-        dx = ball_x - closest_x
-        dy = ball_y - closest_y
-        distance_sq = dx * dx + dy * dy
-
-        if distance_sq < radius * radius:
-            # Collision détectée
-            distance = distance_sq ** 0.5 if distance_sq > 0 else 0.001
-
-            # Normaliser
-            nx = dx / distance
-            ny = dy / distance
-
-            # Repousser la boule
-            overlap = radius - distance
-            new_x = ball_x + nx * overlap
-            new_y = ball_y + ny * overlap
-
-            # Réfléchir la vélocité (pas de rebond comme au sol)
-            if abs(nx) > abs(ny):
-                vx = -vx * bounce
-            else:
-                vy = 0  # Pas de rebond vertical, comme au sol
-
-            on_top = ny < -0.5  # Sur le dessus de l'obstacle
-            return new_x, new_y, vx, vy, True, on_top
-
-        return ball_x, ball_y, vx, vy, False, False
+        return self.check_rect_collision_ellipse(
+            ball_x, ball_y, radius, radius, vx, vy, rect_x, rect_y, rect_w, rect_h
+        )
 
     def check_ball_collision(
         self,
@@ -150,47 +225,7 @@ class PhysicsEngine:
         Returns:
             (x1, y1, vx1, vy1, x2, y2, vx2, vy2, collision_occurred)
         """
-        dx = x2 - x1
-        dy = y2 - y1
-        distance_sq = dx * dx + dy * dy
-        min_dist = r1 + r2
-
-        if distance_sq < min_dist * min_dist and distance_sq > 0:
-            distance = distance_sq ** 0.5
-
-            # Vecteur normal
-            nx = dx / distance
-            ny = dy / distance
-
-            # Séparer les boules
-            overlap = min_dist - distance
-            x1 -= nx * overlap * 0.5
-            y1 -= ny * overlap * 0.5
-            x2 += nx * overlap * 0.5
-            y2 += ny * overlap * 0.5
-
-            # Vitesse relative
-            dvx = vx1 - vx2
-            dvy = vy1 - vy2
-
-            # Vitesse relative selon la normale
-            dvn = dvx * nx + dvy * ny
-
-            # Ne pas résoudre si les boules s'éloignent
-            if dvn > 0:
-                # Coefficient de restitution
-                bounce = self.config.BALL_BOUNCE_FACTOR
-
-                # Calcul des nouvelles vitesses (collision élastique avec masses)
-                total_mass = m1 + m2
-                factor1 = (2 * m2 / total_mass) * dvn * bounce
-                factor2 = (2 * m1 / total_mass) * dvn * bounce
-
-                vx1 -= factor1 * nx
-                vy1 -= factor1 * ny
-                vx2 += factor2 * nx
-                vy2 += factor2 * ny
-
-            return x1, y1, vx1, vy1, x2, y2, vx2, vy2, True
-
-        return x1, y1, vx1, vy1, x2, y2, vx2, vy2, False
+        return self.check_ellipse_collision(
+            x1, y1, r1, r1, vx1, vy1, m1,
+            x2, y2, r2, r2, vx2, vy2, m2
+        )

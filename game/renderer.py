@@ -5,6 +5,7 @@ Gère l'affichage de tous les éléments visuels.
 """
 
 import pygame
+from pathlib import Path
 from .config import Config
 from .entities import Ball, Obstacle, FragilePlatform, AIBall, Missile
 from .particles import ParticleSystem
@@ -16,10 +17,65 @@ class Renderer:
     def __init__(self, screen: pygame.Surface, config: Config = None):
         self.screen = screen
         self.config = config or Config()
+        self.background_image = None
+        self.player_sprites = []
+        self.enemy_sprites = {}
+        self._load_assets()
+
+    def _safe_load_scaled(self, path: Path, size: tuple[int, int]):
+        """Charge et redimensionne une image PNG avec alpha."""
+        try:
+            image = pygame.image.load(str(path)).convert_alpha()
+            return pygame.transform.smoothscale(image, size)
+        except Exception:
+            return None
+
+    def _load_assets(self):
+        """Charge les images (fond, persos, ennemis)."""
+        cfg = self.config
+        assets_dir = Path(cfg.ASSETS_DIR)
+
+        self.background_image = self._safe_load_scaled(
+            assets_dir / cfg.BACKGROUND_IMAGE,
+            (cfg.PLAY_AREA_WIDTH, cfg.PLAY_AREA_HEIGHT)
+        )
+
+        self.player_sprites = []
+        for index, image_name in enumerate(cfg.PLAYER_IMAGES):
+            sprite = self._safe_load_scaled(
+                assets_dir / image_name,
+                cfg.PLAYER_SPRITE_SIZES[index]
+            )
+            self.player_sprites.append(sprite)
+
+        self.enemy_sprites = {}
+        for hp, image_name in cfg.ENEMY_IMAGES.items():
+            self.enemy_sprites[hp] = self._safe_load_scaled(
+                assets_dir / image_name,
+                cfg.ENEMY_SPRITE_SIZES[hp]
+            )
 
     def clear(self):
         """Efface l'écran avec la couleur de fond."""
-        self.screen.fill(self.config.COLOR_BACKGROUND)
+        cfg = self.config
+        self.screen.fill((24, 24, 30))
+        pygame.draw.rect(
+            self.screen,
+            cfg.COLOR_BACKGROUND,
+            (0, 0, cfg.PLAY_AREA_WIDTH, cfg.PLAY_AREA_HEIGHT)
+        )
+        pygame.draw.rect(
+            self.screen,
+            (32, 32, 42),
+            (cfg.PLAY_AREA_WIDTH, 0, cfg.SIDEBAR_WIDTH, cfg.PLAY_AREA_HEIGHT)
+        )
+        pygame.draw.rect(
+            self.screen,
+            (28, 28, 36),
+            (0, cfg.PLAY_AREA_HEIGHT, cfg.WINDOW_WIDTH, cfg.BOTTOM_PANEL_HEIGHT)
+        )
+        if self.background_image:
+            self.screen.blit(self.background_image, (0, 0))
 
     def draw_walls(self):
         """Dessine les murs de la pièce."""
@@ -28,56 +84,61 @@ class Renderer:
         w = cfg.WALL_THICKNESS
 
         # Mur haut
-        pygame.draw.rect(self.screen, color, (0, 0, cfg.WINDOW_WIDTH, w))
+        pygame.draw.rect(self.screen, color, (0, 0, cfg.PLAY_AREA_WIDTH, w))
         # Mur bas
         pygame.draw.rect(
             self.screen, color,
-            (0, cfg.WINDOW_HEIGHT - w, cfg.WINDOW_WIDTH, w)
+            (0, cfg.PLAY_AREA_HEIGHT - w, cfg.PLAY_AREA_WIDTH, w)
         )
         # Mur gauche
-        pygame.draw.rect(self.screen, color, (0, 0, w, cfg.WINDOW_HEIGHT))
+        pygame.draw.rect(self.screen, color, (0, 0, w, cfg.PLAY_AREA_HEIGHT))
         # Mur droit
         pygame.draw.rect(
             self.screen, color,
-            (cfg.WINDOW_WIDTH - w, 0, w, cfg.WINDOW_HEIGHT)
+            (cfg.PLAY_AREA_WIDTH - w, 0, w, cfg.PLAY_AREA_HEIGHT)
         )
+
+    def draw_secret_hole(self, side: int, y: float, is_open: bool):
+        """Dessine le trou de la salle secrète sur un mur latéral."""
+        if not is_open:
+            return
+
+        cfg = self.config
+        hole_w = 12
+        hole_h = cfg.SECRET_HOLE_HALF_HEIGHT * 2
+        x = cfg.WALL_THICKNESS - hole_w // 2 if side == -1 else cfg.PLAY_AREA_WIDTH - cfg.WALL_THICKNESS - hole_w // 2
+        rect = pygame.Rect(int(x), int(y - hole_h / 2), hole_w, hole_h)
+        pygame.draw.rect(self.screen, (10, 10, 14), rect, border_radius=4)
+        pygame.draw.rect(self.screen, (120, 170, 210), rect, 2, border_radius=4)
 
     def draw_ball(self, ball: Ball, missile_charging: bool = False, charge_percent: float = 0.0):
         """Dessine la boule."""
-        # Effet de charge : multicolore puis brille
-        if missile_charging:
-            if charge_percent >= 1.0:
-                # Brille quand c'est prêt (blanc brillant qui pulse)
-                import math
-                pulse = abs(math.sin(pygame.time.get_ticks() / 100))
-                brightness = 200 + int(55 * pulse)
-                color = (brightness, brightness, brightness)
-            else:
-                # Multicolore pendant la charge
-                # Mélange de couleurs qui change avec le temps
-                import math
-                t = pygame.time.get_ticks() / 200
-                r = int(127 + 127 * math.sin(t))
-                g = int(127 + 127 * math.sin(t + 2.1))
-                b = int(127 + 127 * math.sin(t + 4.2))
-                color = (r, g, b)
-        elif ball.floating:
-            color = (200, 200, 255)  # Bleuté quand en flottement
-        else:
-            color = ball.color
+        sprite = None
+        if 0 <= ball.character_index < len(self.player_sprites):
+            sprite = self.player_sprites[ball.character_index]
 
-        pygame.draw.circle(
-            self.screen,
-            color,
-            (int(ball.x), int(ball.y)),
-            ball.radius
-        )
+        if sprite is not None:
+            if ball.facing_direction < 0:
+                sprite = pygame.transform.flip(sprite, True, False)
+            sprite_rect = sprite.get_rect(center=(int(ball.x), int(ball.y)))
+            self.screen.blit(sprite, sprite_rect)
+        else:
+            pygame.draw.ellipse(
+                self.screen,
+                ball.color,
+                (
+                    int(ball.x - ball.half_w),
+                    int(ball.y - ball.half_h),
+                    int(ball.hitbox_width),
+                    int(ball.hitbox_height)
+                )
+            )
 
         # Effet de brillance supplémentaire quand chargé à 100%
         if missile_charging and charge_percent >= 1.0:
             # Aura brillante
             for i in range(3):
-                alpha_radius = ball.radius + (i + 1) * 3
+                alpha_radius = int(ball.visual_radius) + (i + 1) * 4
                 import math
                 pulse = abs(math.sin(pygame.time.get_ticks() / 100 + i))
                 brightness = int(200 * pulse)
@@ -88,28 +149,6 @@ class Renderer:
                     alpha_radius,
                     2
                 )
-
-        # Dessiner les yeux
-        eye_offset_x = ball.radius * 0.35 * ball.facing_direction
-        eye_offset_y = -ball.radius * 0.2
-        eye_radius = ball.radius * 0.25  # Yeux plus gros
-
-        # Position des deux yeux
-        left_eye_x = int(ball.x + eye_offset_x - ball.radius * 0.2 * ball.facing_direction)
-        right_eye_x = int(ball.x + eye_offset_x + ball.radius * 0.2 * ball.facing_direction)
-        eye_y = int(ball.y + eye_offset_y)
-
-        # Blanc des yeux
-        pygame.draw.circle(self.screen, (255, 255, 255), (left_eye_x, eye_y), int(eye_radius * 1.2))
-        pygame.draw.circle(self.screen, (255, 255, 255), (right_eye_x, eye_y), int(eye_radius * 1.2))
-
-        # Pupilles (noires) - bougent selon la direction de visée
-        pupil_offset_x = ball.radius * 0.08 * ball.facing_direction
-        pupil_offset_y = ball.radius * 0.08 * ball.aim_direction_y
-        pygame.draw.circle(self.screen, (0, 0, 0),
-                          (int(left_eye_x + pupil_offset_x), int(eye_y + pupil_offset_y)), int(eye_radius * 0.6))
-        pygame.draw.circle(self.screen, (0, 0, 0),
-                          (int(right_eye_x + pupil_offset_x), int(eye_y + pupil_offset_y)), int(eye_radius * 0.6))
 
     def draw_obstacle(self, obstacle: Obstacle):
         """Dessine un obstacle."""
@@ -140,97 +179,23 @@ class Renderer:
 
     def draw_ai_ball(self, ball: AIBall):
         """Dessine une boule IA."""
-        # Corps de la boule
-        pygame.draw.circle(
-            self.screen,
-            ball.color,
-            (int(ball.x), int(ball.y)),
-            ball.radius
-        )
-        # Effet de brillance
-        highlight_pos = (
-            int(ball.x - ball.radius * 0.25),
-            int(ball.y - ball.radius * 0.25)
-        )
-        # Couleur de brillance plus claire
-        highlight_color = (
-            min(255, ball.color[0] + 80),
-            min(255, ball.color[1] + 80),
-            min(255, ball.color[2] + 80)
-        )
-        pygame.draw.circle(
-            self.screen,
-            highlight_color,
-            highlight_pos,
-            ball.radius // 4
-        )
-        # Contour
-        pygame.draw.circle(
-            self.screen,
-            (
-                max(0, ball.color[0] - 40),
-                max(0, ball.color[1] - 40),
-                max(0, ball.color[2] - 40)
-            ),
-            (int(ball.x), int(ball.y)),
-            ball.radius,
-            2
-        )
-
-        # Dessiner un sourire fun au lieu des HP
-        # Yeux (deux petits cercles)
-        eye_offset_x = ball.radius * 0.4
-        eye_offset_y = -ball.radius * 0.25
-        eye_radius = ball.radius * 0.15
-
-        # Oeil gauche
-        pygame.draw.circle(
-            self.screen,
-            (255, 255, 255),
-            (int(ball.x - eye_offset_x), int(ball.y + eye_offset_y)),
-            int(eye_radius)
-        )
-        # Pupille gauche
-        pygame.draw.circle(
-            self.screen,
-            (0, 0, 0),
-            (int(ball.x - eye_offset_x), int(ball.y + eye_offset_y)),
-            int(eye_radius * 0.5)
-        )
-
-        # Oeil droit
-        pygame.draw.circle(
-            self.screen,
-            (255, 255, 255),
-            (int(ball.x + eye_offset_x), int(ball.y + eye_offset_y)),
-            int(eye_radius)
-        )
-        # Pupille droite
-        pygame.draw.circle(
-            self.screen,
-            (0, 0, 0),
-            (int(ball.x + eye_offset_x), int(ball.y + eye_offset_y)),
-            int(eye_radius * 0.5)
-        )
-
-        # Sourire (arc)
-        mouth_y = int(ball.y + ball.radius * 0.3)
-        mouth_width = int(ball.radius * 0.8)
-        mouth_height = int(ball.radius * 0.4)
-        mouth_rect = pygame.Rect(
-            int(ball.x - mouth_width / 2),
-            mouth_y - mouth_height,
-            mouth_width,
-            mouth_height
-        )
-        pygame.draw.arc(
-            self.screen,
-            (255, 255, 255),
-            mouth_rect,
-            3.14,  # pi (180 degrés)
-            0,     # 0 degrés
-            3      # épaisseur
-        )
+        sprite = self.enemy_sprites.get(ball.max_hp)
+        if sprite is not None:
+            if ball.facing_direction < 0:
+                sprite = pygame.transform.flip(sprite, True, False)
+            rect = sprite.get_rect(center=(int(ball.x), int(ball.y)))
+            self.screen.blit(sprite, rect)
+        else:
+            pygame.draw.ellipse(
+                self.screen,
+                ball.color,
+                (
+                    int(ball.x - ball.half_w),
+                    int(ball.y - ball.half_h),
+                    int(ball.hitbox_width),
+                    int(ball.hitbox_height)
+                )
+            )
 
     def draw_ai_balls(self, ai_balls: list[AIBall]):
         """Dessine toutes les boules IA."""
@@ -423,129 +388,131 @@ class Renderer:
                 size
             )
 
-    def draw_hud(self, ball: Ball, enemy_count: int = 0, missile_charging: bool = False, charge_timer: int = 0, enemies_defeated: int = 0, current_level: int = 1):
+    def draw_hud(self, ball: Ball, enemy_count: int = 0, enemies_defeated: int = 0, current_level: int = 1, rage: float = 0.0):
         """Affiche les informations à l'écran."""
         font = pygame.font.Font(None, 22)
 
-        # Instructions ligne 1 - Clavier
+        # Instructions en bas (hors aire de jeu)
+        cmd_y_1 = self.config.PLAY_AREA_HEIGHT + 22
+        cmd_y_2 = self.config.PLAY_AREA_HEIGHT + 50
         text1 = font.render(
             "Fleches/WASD: Bouger | Haut/Z/K: Sauter | Shift: Flotter | Espace: Tirer",
             True, (200, 200, 200)
         )
-        self.screen.blit(text1, (10, self.config.WINDOW_HEIGHT - 55))
+        self.screen.blit(text1, (16, cmd_y_1))
 
-        # Instructions ligne 2 - Manette
         text2 = font.render(
-            "Manette: Stick/D-pad: Bouger | A: Sauter | B: Flotter | X: Tirer | Start: Pause",
-            True, (150, 200, 255)
+            "C/Y: Super Orage (>=50 rage) | Manette: Stick, A saut, B float, X tir, Start pause",
+            True, (170, 210, 255)
         )
-        self.screen.blit(text2, (10, self.config.WINDOW_HEIGHT - 30))
+        self.screen.blit(text2, (16, cmd_y_2))
 
-        # Barre d'énergie (la barre de vitesse a été supprimée)
-        energy_bar_width = 150
+        info_x = self.config.PLAY_AREA_WIDTH + 20
+        title_font = pygame.font.Font(None, 30)
+        info_title = title_font.render("Infos Joueur", True, (235, 235, 235))
+        self.screen.blit(info_title, (info_x, 16))
+
+        energy_bar_width = 160
         energy_bar_height = 20
-        energy_x = self.config.WINDOW_WIDTH - energy_bar_width - 20
-        energy_y = 30
+        energy_x = info_x
+        energy_y = 52
 
-        # Fond de la barre
-        pygame.draw.rect(
-            self.screen,
-            (60, 60, 60),
-            (energy_x, energy_y, energy_bar_width, energy_bar_height)
-        )
-
-        # Énergie actuelle (affichage smooth)
+        pygame.draw.rect(self.screen, (60, 60, 60), (energy_x, energy_y, energy_bar_width, energy_bar_height))
         energy_percent = ball.displayed_energy / self.config.MAX_ENERGY
         current_width = int(energy_bar_width * energy_percent)
 
-        # Couleur selon le niveau d'énergie
         if energy_percent > 0.6:
-            energy_color = (100, 200, 255)  # Bleu
+            energy_color = (100, 200, 255)
         elif energy_percent > 0.3:
-            energy_color = (255, 200, 100)  # Orange
+            energy_color = (255, 200, 100)
         else:
-            energy_color = (255, 100, 100)  # Rouge
+            energy_color = (255, 100, 100)
 
-        pygame.draw.rect(
-            self.screen,
-            energy_color,
-            (energy_x, energy_y, current_width, energy_bar_height)
-        )
-
-        # Bordure de la barre
-        pygame.draw.rect(
-            self.screen,
-            (200, 200, 200),
-            (energy_x, energy_y, energy_bar_width, energy_bar_height),
-            2
-        )
-
-        # Texte énergie (affichage smooth)
-        energy_text = font.render(f"Énergie: {int(ball.displayed_energy)}", True, (180, 180, 180))
+        pygame.draw.rect(self.screen, energy_color, (energy_x, energy_y, current_width, energy_bar_height))
+        pygame.draw.rect(self.screen, (200, 200, 200), (energy_x, energy_y, energy_bar_width, energy_bar_height), 2)
+        energy_text = font.render(f"Energie: {int(ball.displayed_energy)}", True, (180, 180, 180))
         self.screen.blit(energy_text, (energy_x, energy_y - 20))
 
-        # Indicateur de sauts restants
-        jumps_text = font.render(
-            f"Sauts: {ball.jumps_remaining}/{self.config.MAX_JUMPS}",
-            True, (180, 180, 180)
-        )
-        self.screen.blit(jumps_text, (energy_x, energy_y + 30))
+        # Rage bar
+        rage_percent = max(0.0, min(1.0, rage / 100.0))
+        rage_bar_width = 160
+        rage_bar_height = 20
+        rage_x = info_x
+        rage_y = energy_y + 34
+        pygame.draw.rect(self.screen, (60, 60, 60), (rage_x, rage_y, rage_bar_width, rage_bar_height))
+        rage_fill = int(rage_bar_width * rage_percent)
 
-        # Nombre d'ennemis actifs
-        enemies_text = font.render(
-            f"Ennemis: {enemy_count}",
-            True, (180, 180, 180)
-        )
-        self.screen.blit(enemies_text, (energy_x, energy_y + 55))
+        if rage >= 100:
+            import math
+            t = pygame.time.get_ticks() / 180
+            rage_color = (
+                int(127 + 127 * math.sin(t)),
+                int(127 + 127 * math.sin(t + 2.1)),
+                int(127 + 127 * math.sin(t + 4.2))
+            )
+        elif rage >= 50:
+            blink = (pygame.time.get_ticks() // 180) % 2
+            rage_color = (255, 230, 80) if blink else (180, 150, 40)
+        else:
+            rage_color = (180, 90, 200)
 
-        # Compteur d'ennemis vaincus et niveau
-        defeated_text = font.render(
-            f"Vaincus: {enemies_defeated}/{self.config.ENEMIES_TO_WIN}",
-            True, (255, 215, 0)  # Or
-        )
-        self.screen.blit(defeated_text, (energy_x, energy_y + 80))
+        pygame.draw.rect(self.screen, rage_color, (rage_x, rage_y, rage_fill, rage_bar_height))
+        pygame.draw.rect(self.screen, (220, 220, 220), (rage_x, rage_y, rage_bar_width, rage_bar_height), 2)
+        rage_text = font.render(f"Rage: {int(rage)}%", True, (200, 200, 200))
+        self.screen.blit(rage_text, (rage_x, rage_y - 20))
 
-        level_text = font.render(
-            f"Niveau: {current_level}",
-            True, (150, 255, 150)  # Vert clair
-        )
-        self.screen.blit(level_text, (energy_x, energy_y + 105))
+        jumps_text = font.render(f"Sauts: {ball.jumps_remaining}/{self.config.MAX_JUMPS}", True, (180, 180, 180))
+        self.screen.blit(jumps_text, (energy_x, rage_y + 30))
 
-        # Indicateur flottement
+        # Speed bar (s'agrandit à 100% rage)
+        speed_bar_width = 220 if rage >= 100 else 150
+        speed_bar_height = 16
+        speed_x = energy_x
+        speed_y = rage_y + 56
+        active_max_speed = self.config.MAX_SPEED_RAGE if rage >= 100 else self.config.MAX_SPEED
+        speed_ratio = min(1.0, abs(ball.vx) / max(active_max_speed, 1e-6))
+        pygame.draw.rect(self.screen, (60, 60, 60), (speed_x, speed_y, speed_bar_width, speed_bar_height))
+        pygame.draw.rect(self.screen, (120, 240, 140), (speed_x, speed_y, int(speed_bar_width * speed_ratio), speed_bar_height))
+        pygame.draw.rect(self.screen, (200, 200, 200), (speed_x, speed_y, speed_bar_width, speed_bar_height), 2)
+        speed_text = font.render(f"Vitesse: {abs(ball.vx):.1f}/{active_max_speed}", True, (180, 180, 180))
+        self.screen.blit(speed_text, (speed_x, speed_y + 18))
+
+        enemies_text = font.render(f"Ennemis: {enemy_count}", True, (180, 180, 180))
+        self.screen.blit(enemies_text, (energy_x, speed_y + 44))
+
+        defeated_text = font.render(f"Vaincus: {enemies_defeated}/{self.config.ENEMIES_TO_WIN}", True, (255, 215, 0))
+        self.screen.blit(defeated_text, (energy_x, speed_y + 68))
+
+        level_text = font.render(f"Niveau: {current_level}", True, (150, 255, 150))
+        self.screen.blit(level_text, (energy_x, speed_y + 92))
+
+        if ball.rage_boost_active:
+            immune_text = font.render("Rage max: Immunite collision", True, (255, 220, 120))
+            self.screen.blit(immune_text, (energy_x, speed_y + 116))
+
         if ball.floating:
             float_text = font.render("FLOTTE", True, (150, 150, 255))
-            self.screen.blit(float_text, (energy_x, energy_y + 130))
+            self.screen.blit(float_text, (energy_x, speed_y + 140))
 
-        # Affichage des vies (coeurs) en haut à gauche
-        heart_size = 25
-        heart_spacing = 30
-        start_x = 20
-        start_y = 20
+        heart_size = 20
+        heart_spacing = 26
+        start_x = energy_x + 15
+        start_y = speed_y + 182
 
-        for i in range(ball.max_lives):  # Afficher autant de coeurs que le max du personnage
+        hearts_label = font.render("Vies:", True, (220, 220, 220))
+        self.screen.blit(hearts_label, (energy_x, start_y - 26))
+
+        for i in range(ball.max_lives):
             heart_x = start_x + i * heart_spacing
             heart_y = start_y
-
-            if i < ball.lives:
-                # Coeur plein (rouge)
-                heart_color = (255, 50, 50)
-            else:
-                # Coeur vide (gris)
-                heart_color = (80, 80, 80)
-
-            # Dessiner un coeur avec des cercles et un triangle
-            # Deux demi-cercles en haut
-            pygame.draw.circle(self.screen, heart_color,
-                             (heart_x - heart_size // 4, heart_y), heart_size // 3)
-            pygame.draw.circle(self.screen, heart_color,
-                             (heart_x + heart_size // 4, heart_y), heart_size // 3)
-            # Triangle pointant vers le bas
+            heart_color = (255, 50, 50) if i < ball.lives else (80, 80, 80)
+            pygame.draw.circle(self.screen, heart_color, (heart_x - heart_size // 4, heart_y), heart_size // 3)
+            pygame.draw.circle(self.screen, heart_color, (heart_x + heart_size // 4, heart_y), heart_size // 3)
             pygame.draw.polygon(self.screen, heart_color, [
                 (heart_x - heart_size // 2, heart_y),
                 (heart_x + heart_size // 2, heart_y),
                 (heart_x, heart_y + heart_size // 2)
             ])
-
 
     def draw_welcome(self):
         """Dessine l'écran de bienvenue avec explications."""
@@ -595,7 +562,7 @@ class Renderer:
 
         keyboard_controls = [
             "Flèches/WASD: Déplacer  |  Haut/Z/K: Sauter (double saut)",
-            "Shift: Flotter  |  Espace: Tirer / Charger super-tir",
+            "Shift: Flotter  |  Espace: Tirer  |  C: Super orage (rage >= 50%)",
             "ESC: Pause  |  R: Recommencer le niveau"
         ]
         for line in keyboard_controls:
@@ -639,8 +606,14 @@ class Renderer:
         """
         cfg = self.config
 
-        # Fond
+        # Fond (utilise le background si dispo)
         self.screen.fill(cfg.COLOR_MENU_BACKGROUND)
+        if self.background_image:
+            bg = pygame.transform.smoothscale(self.background_image, (cfg.WINDOW_WIDTH, cfg.WINDOW_HEIGHT))
+            self.screen.blit(bg, (0, 0))
+            overlay = pygame.Surface((cfg.WINDOW_WIDTH, cfg.WINDOW_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((10, 12, 18, 120))
+            self.screen.blit(overlay, (0, 0))
 
         # Titre
         title_font = pygame.font.Font(None, 72)
@@ -650,94 +623,58 @@ class Renderer:
 
         # Sous-titre
         subtitle_font = pygame.font.Font(None, 36)
-        subtitle = subtitle_font.render(
-            "Choisissez votre couleur", True, cfg.COLOR_MENU_TEXT
-        )
+        subtitle = subtitle_font.render("Choisissez votre personnage", True, cfg.COLOR_MENU_TEXT)
         subtitle_rect = subtitle.get_rect(center=(cfg.WINDOW_WIDTH // 2, 160))
         self.screen.blit(subtitle, subtitle_rect)
 
-        # Afficher les boules
-        ball_radius = 40
-        spacing = 150
-        start_x = cfg.WINDOW_WIDTH // 2 - (len(colors) - 1) * spacing // 2
-        ball_y = 300
+        spacing = 280
+        start_x = cfg.WINDOW_WIDTH // 2 - (len(names) - 1) * spacing // 2
+        slot_y = 390
 
-        for i, (color, name) in enumerate(zip(colors, names)):
-            ball_x = start_x + i * spacing
+        for i, name in enumerate(names):
+            slot_x = start_x + i * spacing
+            sprite = self.player_sprites[i] if i < len(self.player_sprites) else None
+            sprite_w, sprite_h = cfg.PLAYER_SPRITE_SIZES[i]
 
-            # Cercle de sélection
             if i == selected_index:
-                pygame.draw.circle(
+                highlight_rect = pygame.Rect(
+                    int(slot_x - sprite_w / 2 - 16),
+                    int(slot_y - sprite_h / 2 - 16),
+                    sprite_w + 32,
+                    sprite_h + 32
+                )
+                pygame.draw.rect(self.screen, cfg.COLOR_MENU_HIGHLIGHT, highlight_rect, 4, border_radius=16)
+
+            if sprite:
+                sprite_rect = sprite.get_rect(center=(slot_x, slot_y))
+                self.screen.blit(sprite, sprite_rect)
+            else:
+                pygame.draw.ellipse(
                     self.screen,
-                    cfg.COLOR_MENU_HIGHLIGHT,
-                    (ball_x, ball_y),
-                    ball_radius + 8,
-                    4
+                    colors[i],
+                    (int(slot_x - sprite_w / 2), int(slot_y - sprite_h / 2), sprite_w, sprite_h)
                 )
 
-            # Boule
-            pygame.draw.circle(
-                self.screen,
-                color,
-                (ball_x, ball_y),
-                ball_radius
-            )
-
-            # Dessiner les yeux pour le menu
-            eye_offset_x = ball_radius * 0.35
-            eye_offset_y = -ball_radius * 0.2
-            eye_radius = ball_radius * 0.25  # Yeux plus gros
-
-            # Position des deux yeux (regardent vers la droite)
-            left_eye_x = int(ball_x + eye_offset_x - ball_radius * 0.2)
-            right_eye_x = int(ball_x + eye_offset_x + ball_radius * 0.2)
-            eye_y = int(ball_y + eye_offset_y)
-
-            # Blanc des yeux
-            pygame.draw.circle(self.screen, (255, 255, 255), (left_eye_x, eye_y), int(eye_radius * 1.2))
-            pygame.draw.circle(self.screen, (255, 255, 255), (right_eye_x, eye_y), int(eye_radius * 1.2))
-
-            # Pupilles - couleur différente selon la boule
-            if i == 0:  # Rouge
-                pupil_color = (100, 0, 0)
-            elif i == 1:  # Bleu
-                pupil_color = (0, 50, 100)
-            else:  # Vert
-                pupil_color = (0, 100, 50)
-
-            pupil_offset = ball_radius * 0.08
-            pygame.draw.circle(self.screen, pupil_color,
-                              (int(left_eye_x + pupil_offset), eye_y), int(eye_radius * 0.6))
-            pygame.draw.circle(self.screen, pupil_color,
-                              (int(right_eye_x + pupil_offset), eye_y), int(eye_radius * 0.6))
-
-            # Nom de la couleur
-            name_font = pygame.font.Font(None, 28)
+            name_font = pygame.font.Font(None, 30)
             name_text = name_font.render(name, True, cfg.COLOR_MENU_TEXT)
-            name_rect = name_text.get_rect(center=(ball_x, ball_y + ball_radius + 25))
+            name_rect = name_text.get_rect(center=(slot_x, slot_y + sprite_h // 2 + 30))
             self.screen.blit(name_text, name_rect)
 
-            # Stats du personnage
-            stats_font = pygame.font.Font(None, 20)
+            stats_font = pygame.font.Font(None, 22)
             max_lives, speed_mult, jump_mult = cfg.PLAYER_STATS[i]
             stats_text = stats_font.render(
                 f"{max_lives} PV | Vit: {int(speed_mult*100)}% | Saut: {int(jump_mult*100)}%",
-                True, (150, 150, 150)
+                True,
+                (180, 180, 180)
             )
-            stats_rect = stats_text.get_rect(center=(ball_x, ball_y + ball_radius + 50))
+            stats_rect = stats_text.get_rect(center=(slot_x, slot_y + sprite_h // 2 + 56))
             self.screen.blit(stats_text, stats_rect)
 
-        # Instructions
-        instr_font = pygame.font.Font(None, 28)
-        instructions = [
-            "< / > : Changer de couleur",
-            "Entree / Espace : Jouer"
-        ]
-        for i, text in enumerate(instructions):
-            instr = instr_font.render(text, True, (150, 150, 150))
-            instr_rect = instr.get_rect(
-                center=(cfg.WINDOW_WIDTH // 2, 450 + i * 35)
-            )
+        instr_font = pygame.font.Font(None, 30)
+        instructions = ["< / > : Changer de personnage", "Entree / Espace : Jouer"]
+        for idx, text_line in enumerate(instructions):
+            instr = instr_font.render(text_line, True, (190, 190, 190))
+            instr_rect = instr.get_rect(center=(cfg.WINDOW_WIDTH // 2, 640 + idx * 35))
             self.screen.blit(instr, instr_rect)
 
     def draw_highscores(self, highscores: list, current_score: int):

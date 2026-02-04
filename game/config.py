@@ -9,10 +9,22 @@ class Config:
     """Configuration globale du jeu."""
 
     # Fenêtre
-    WINDOW_WIDTH = 800
-    WINDOW_HEIGHT = 600
+    PLAY_AREA_WIDTH = 1200
+    PLAY_AREA_HEIGHT = 800
+    SIDEBAR_WIDTH = 320
+    BOTTOM_PANEL_HEIGHT = 140
+    WINDOW_WIDTH = PLAY_AREA_WIDTH + SIDEBAR_WIDTH
+    WINDOW_HEIGHT = PLAY_AREA_HEIGHT + BOTTOM_PANEL_HEIGHT
     FPS = 60
     TITLE = "eDeDo"
+    ASSETS_DIR = "assets"
+    BACKGROUND_IMAGE = "background.png"
+    PLAYER_IMAGES = ["perso-1.png", "perso-2.png", "perso-3.png"]
+    ENEMY_IMAGES = {
+        1: "ennemi-1.png",
+        2: "ennemi-2.png",
+        3: "ennemi-3.png",
+    }
 
     # Couleurs (RGB)
     COLOR_BACKGROUND = (30, 30, 40)
@@ -41,6 +53,16 @@ class Config:
 
     # Boule
     BALL_RADIUS = 20
+    PLAYER_SPRITE_SIZES = [
+        (55, 65),   # perso-1 (x0.6)
+        (71, 65),   # perso-2 (x0.6)
+        (94, 61),   # perso-3 (x0.6)
+    ]
+    PLAYER_HITBOX_SIZES = [
+        (55, 65),    # perso-1 (meme taille que sprite)
+        (71, 65),    # perso-2 (meme taille que sprite)
+        (94, 61),    # perso-3 (meme taille que sprite)
+    ]
     BALL_SPEED = 5
     JUMP_FORCE = -12
     MAX_JUMPS = 2  # Double saut
@@ -50,11 +72,12 @@ class Config:
     ENERGY_REGEN_RATE = 0.1  # 1 point tous les 10 frames au sol
     FLOAT_ENERGY_COST = 0.5  # Coût par frame de flottement (réduit)
     DOUBLE_JUMP_ENERGY_COST = 30  # Coût d'un double saut
-    MISSILE_ENERGY_COST = 20  # Coût d'un missile
+    MISSILE_ENERGY_COST = 10  # Coût d'un missile
     FLOAT_GRAVITY_MULTIPLIER = 0.3  # Gravité réduite pendant le flottement
 
     # Limite de vitesse
-    MAX_SPEED = 9  # Vitesse horizontale maximale (réduit de 12 à 9)
+    MAX_SPEED = 12  # Vitesse horizontale maximale de base
+    MAX_SPEED_RAGE = 17  # Vitesse maximale quand rage à 100%
     SPEED_DECAY_RATE = 0.95  # Taux de réduction quand au-dessus de la limite
     AIR_CONTROL_FACTOR = 0.6  # Facteur de contrôle dans les airs (60% du contrôle au sol)
 
@@ -68,8 +91,21 @@ class Config:
     FRAGILE_PLATFORM_BREAK_DELAY = 20  # Frames sur la plateforme avant qu'elle casse
     FRAGILE_PLATFORM_RESPAWN_TIME = 180  # Frames avant réapparition (3 secondes)
 
+    # Salle secrète
+    SECRET_HOLE_HALF_HEIGHT = 45
+
     # Boules IA
     AI_BALL_RADIUS = 14
+    ENEMY_SPRITE_SIZES = {
+        1: (53, 46),   # x0.6
+        2: (60, 50),   # x0.6
+        3: (67, 56),   # x0.6
+    }
+    ENEMY_HITBOX_SIZES = {
+        1: (53, 46),  # meme taille que sprite
+        2: (60, 50),  # meme taille que sprite
+        3: (67, 56),  # meme taille que sprite
+    }
     AI_BALL_COUNT = 3
     # Couleurs des ennemis selon HP
     AI_BALL_COLOR_1HP = (100, 150, 255)  # Bleu pour 1 HP
@@ -124,13 +160,17 @@ class Config:
     MISSILE_COLOR = (255, 255, 50)  # Jaune vif
 
     # Missile chargé
-    CHARGED_MISSILE_COST = 50  # 50% de l'énergie (ou tout si < 50%)
-    CHARGED_MISSILE_CHARGE_TIME = 90  # 1.5 secondes à 60 FPS
+    CHARGED_MISSILE_COST = 0  # Désactivé: la super attaque utilise la rage
+    CHARGED_MISSILE_CHARGE_TIME = 0
     CHARGED_MISSILE_WIDTH = 60  # Beaucoup plus grand!
     CHARGED_MISSILE_HEIGHT = 35  # Beaucoup plus grand!
     CHARGED_MISSILE_SPEED = 15
     CHARGED_MISSILE_COLOR = (255, 100, 50)  # Orange/rouge
     CHARGED_MISSILE_EXPLOSION_RADIUS = 120  # Zone d'explosion plus grande aussi
+
+    # Rage / super attaque
+    RAGE_GAIN_PER_HIT = 10
+    RAGE_SUPER_COST = 50
 
     # Spawn d'ennemis
     ENEMY_SPAWN_INTERVAL = 180  # Frames entre chaque spawn (3 secondes à 60 FPS)

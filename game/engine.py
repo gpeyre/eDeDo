@@ -49,11 +49,9 @@ class GameEngine:
         self.selected_color_index = 0
         self.pause_menu_index = 0  # 0 = Reprendre, 1 = Menu
         self.spawn_timer = 0
-        self.missile_charging = False
-        self.missile_charge_timer = 0
         self.fire_cooldown = 0  # Cooldown pour tir automatique
-        self.space_key_hold_timer = 0  # Timer pour F maintenu
-        self.was_grounded_during_charge = False  # Pour savoir si on était au sol pendant la charge
+        self.super_cooldown = 0
+        self.super_button_was_pressed = False
         self.joystick = None  # Manette
         self.enemies_defeated = 0  # Compteur d'ennemis vaincus
         self.door = None  # La porte vers le prochain niveau
@@ -61,6 +59,13 @@ class GameEngine:
         self.highscores = self._load_highscores()  # Liste des meilleurs scores
         self.current_score = 0  # Score de la partie en cours
         self.menu_input_cooldown = 0  # Cooldown pour éviter la sensibilité excessive au menu
+        self.rage = 0.0
+        self.secret_side = 1  # 1 = droite, -1 = gauche
+        self.secret_hole_y = 0
+        self.secret_hole_open = False
+        self.secret_reward_claimed = False
+        self.in_secret_room = False
+        self._main_world_snapshot = None
 
     def init(self):
         """Initialise Pygame et les composants du jeu."""
@@ -93,14 +98,19 @@ class GameEngine:
         # Position initiale de la boule (tout en haut, tombe) avec couleur et stats sélectionnées
         selected_color = cfg.PLAYER_BALL_COLORS[self.selected_color_index]
         max_lives, speed_mult, jump_mult = cfg.PLAYER_STATS[self.selected_color_index]
+        player_hitbox_w, player_hitbox_h = cfg.PLAYER_HITBOX_SIZES[self.selected_color_index]
         self.ball = Ball(
-            x=cfg.WINDOW_WIDTH // 2,
-            y=cfg.WALL_THICKNESS + cfg.BALL_RADIUS + 5,
+            x=cfg.PLAY_AREA_WIDTH // 2,
+            y=cfg.WALL_THICKNESS + player_hitbox_h / 2 + 5,
             color=selected_color,
             lives=max_lives,
             max_lives=max_lives,
             speed_multiplier=speed_mult,
-            jump_multiplier=jump_mult
+            jump_multiplier=jump_mult,
+            character_index=self.selected_color_index,
+            hitbox_width=player_hitbox_w,
+            hitbox_height=player_hitbox_h,
+            radius=max(player_hitbox_w, player_hitbox_h) / 2
         )
 
         # Générer obstacles aléatoirement
@@ -114,7 +124,7 @@ class GameEngine:
         # Nombre aléatoire de plateformes statiques (3-6)
         num_static = random.randint(3, 6)
         for _ in range(num_static):
-            x = random.randint(cfg.WALL_THICKNESS + 50, cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 200)
+            x = random.randint(cfg.WALL_THICKNESS + 50, cfg.PLAY_AREA_WIDTH - cfg.WALL_THICKNESS - 200)
             y = random.randint(150, 400)
             width = random.randint(80, 180)
             self.obstacles.append(Obstacle.create_platform(x, y, width))
@@ -122,7 +132,7 @@ class GameEngine:
         # Quelques plateformes fragiles (différentes visuellement et temporaires)
         num_fragile = random.randint(1, 2)
         for _ in range(num_fragile):
-            x = random.randint(cfg.WALL_THICKNESS + 60, cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 220)
+            x = random.randint(cfg.WALL_THICKNESS + 60, cfg.PLAY_AREA_WIDTH - cfg.WALL_THICKNESS - 220)
             y = random.randint(180, 380)
             width = random.randint(90, 170)
             self.obstacles.append(FragilePlatform.create(x, y, width))
@@ -130,7 +140,7 @@ class GameEngine:
         # Plateformes mobiles: moitié lentes, moitié rapides
         num_moving = random.randint(2, 4)
         for i in range(num_moving):
-            x = random.randint(cfg.WALL_THICKNESS + 50, cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 200)
+            x = random.randint(cfg.WALL_THICKNESS + 50, cfg.PLAY_AREA_WIDTH - cfg.WALL_THICKNESS - 200)
             y = random.randint(100, 350)
             width = random.randint(100, 160)
             travel = random.randint(150, 300)
@@ -144,7 +154,7 @@ class GameEngine:
         # Quelques blocs (1-3)
         num_blocks = random.randint(1, 3)
         for _ in range(num_blocks):
-            x = random.randint(cfg.WALL_THICKNESS + 50, cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 100)
+            x = random.randint(cfg.WALL_THICKNESS + 50, cfg.PLAY_AREA_WIDTH - cfg.WALL_THICKNESS - 100)
             y = random.randint(100, 300)
             size = random.randint(40, 70)
             self.obstacles.append(Obstacle.create_block(x, y, size))
@@ -158,13 +168,146 @@ class GameEngine:
         # Créer la porte (position random en haut, initialement inactive)
         door_x = random.randint(
             cfg.WALL_THICKNESS + 20,
-            cfg.WINDOW_WIDTH - cfg.WALL_THICKNESS - 100
+            cfg.PLAY_AREA_WIDTH - cfg.WALL_THICKNESS - 100
         )
         door_y = random.randint(
             cfg.WALL_THICKNESS + 20,
             cfg.WALL_THICKNESS + 150  # Dans le tiers supérieur de l'écran
         )
         self.door = Door(x=door_x, y=door_y)
+        self._reset_secret_room()
+
+    def _is_pause_button(self, button: int) -> bool:
+        """Supporte plusieurs mappings manette pour le bouton Start."""
+        return button in (7, 9)
+
+    def _reset_secret_room(self):
+        """Initialise la salle secrète du niveau courant."""
+        self.secret_side = random.choice([-1, 1])
+        self.secret_hole_y = random.randint(150, self.config.PLAY_AREA_HEIGHT - 180)
+        self.secret_hole_open = False
+        self.secret_reward_claimed = False
+        self.in_secret_room = False
+        self._main_world_snapshot = None
+
+    def _is_hitting_secret_wall(self, missile: Missile) -> bool:
+        """Retourne True si un tir touche la zone de la salle secrète."""
+        if self.secret_hole_open or self.in_secret_room:
+            return False
+
+        hole_half = self.config.SECRET_HOLE_HALF_HEIGHT
+        missile_center_y = missile.y + missile.height / 2
+        aligned_y = abs(missile_center_y - self.secret_hole_y) <= hole_half
+        if not aligned_y:
+            return False
+
+        wall = self.config.WALL_THICKNESS
+        if self.secret_side == -1:
+            return missile.x <= wall + 6
+        return missile.x + missile.width >= self.config.PLAY_AREA_WIDTH - wall - 6
+
+    def _is_player_on_secret_hole(self) -> bool:
+        """Retourne True si le joueur touche l'entrée secrète ouverte."""
+        if not self.secret_hole_open or self.in_secret_room:
+            return False
+
+        wall = self.config.WALL_THICKNESS
+        hole_half = self.config.SECRET_HOLE_HALF_HEIGHT
+        if abs(self.ball.y - self.secret_hole_y) > hole_half:
+            return False
+
+        if self.secret_side == -1:
+            return self.ball.x - self.ball.half_w <= wall + 4
+        return self.ball.x + self.ball.half_w >= self.config.PLAY_AREA_WIDTH - wall - 4
+
+    def _create_secret_room_obstacles(self) -> list[Obstacle]:
+        """Crée une petite pièce fermée au centre de l'arène."""
+        cfg = self.config
+        room_w = 300
+        room_h = 220
+        left = cfg.PLAY_AREA_WIDTH // 2 - room_w // 2
+        top = cfg.PLAY_AREA_HEIGHT // 2 - room_h // 2
+        thickness = 18
+
+        return [
+            Obstacle.create_platform(left, top, room_w),
+            Obstacle.create_platform(left, top + room_h - thickness, room_w),
+            Obstacle(x=left, y=top, width=thickness, height=room_h),
+            Obstacle(x=left + room_w - thickness, y=top, width=thickness, height=room_h),
+            Obstacle.create_platform(left, top + 90, 120),
+            Obstacle.create_platform(left + room_w - 140, top + 140, 120),
+        ]
+
+    def _enter_secret_room(self):
+        """Bascule dans la salle secrète."""
+        if self.in_secret_room or self.secret_reward_claimed:
+            return
+
+        self._main_world_snapshot = {
+            "obstacles": self.obstacles,
+            "ai_balls": self.ai_balls,
+            "missiles": self.missiles,
+            "enemy_bullets": self.enemy_bullets,
+            "heart_pickups": self.heart_pickups,
+            "door_active": self.door.active if self.door else False,
+            "spawn_timer": self.spawn_timer,
+            "heart_spawn_timer": self.heart_spawn_timer,
+            "enemies_defeated": self.enemies_defeated,
+            "ball_x": self.ball.x,
+            "ball_y": self.ball.y,
+        }
+
+        self.in_secret_room = True
+        self.obstacles = self._create_secret_room_obstacles()
+        enemy_hitbox_w, enemy_hitbox_h = self.config.ENEMY_HITBOX_SIZES[2]
+        self.ai_balls = [AIBall(
+            x=self.config.PLAY_AREA_WIDTH // 2,
+            y=self.config.PLAY_AREA_HEIGHT // 2 - 40,
+            hp=2,
+            max_hp=2,
+            color=self.config.AI_BALL_COLOR_2HP,
+            radius=self.config.AI_BALL_RADIUS_2HP,
+            hitbox_width=enemy_hitbox_w,
+            hitbox_height=enemy_hitbox_h,
+        )]
+        self.missiles = []
+        self.enemy_bullets = []
+        self.heart_pickups = []
+        self.ball.x = self.config.PLAY_AREA_WIDTH // 2
+        self.ball.y = self.config.PLAY_AREA_HEIGHT // 2 + 55
+        self.ball.vx = 0
+        self.ball.vy = 0
+        if self.door:
+            self.door.active = False
+
+    def _exit_secret_room(self):
+        """Revient à la salle principale du niveau."""
+        if not self.in_secret_room or self._main_world_snapshot is None:
+            return
+
+        snapshot = self._main_world_snapshot
+        self.obstacles = snapshot["obstacles"]
+        self.ai_balls = snapshot["ai_balls"]
+        self.missiles = snapshot["missiles"]
+        self.enemy_bullets = snapshot["enemy_bullets"]
+        self.heart_pickups = snapshot["heart_pickups"]
+        self.spawn_timer = snapshot["spawn_timer"]
+        self.heart_spawn_timer = snapshot["heart_spawn_timer"]
+        self.enemies_defeated = snapshot["enemies_defeated"]
+
+        hole_x = self.config.WALL_THICKNESS + self.ball.half_w + 8
+        if self.secret_side == 1:
+            hole_x = self.config.PLAY_AREA_WIDTH - self.config.WALL_THICKNESS - self.ball.half_w - 8
+        self.ball.x = hole_x
+        self.ball.y = self.secret_hole_y
+        self.ball.vx = 0
+        self.ball.vy = 0
+
+        if self.door:
+            self.door.active = snapshot["door_active"]
+
+        self.in_secret_room = False
+        self._main_world_snapshot = None
 
     def handle_events(self):
         """Gère les événements Pygame."""
@@ -196,7 +339,7 @@ class GameEngine:
                 elif self.state == GameState.PLAYING:
                     if event.button == 0:  # Bouton A = saut
                         self._handle_game_keydown(pygame.K_z)
-                    elif event.button == 7:  # Bouton Start = pause
+                    elif self._is_pause_button(event.button):  # Bouton Start = pause
                         self.state = GameState.PAUSED
                         self.pause_menu_index = 0
                 elif self.state == GameState.PAUSED:
@@ -205,7 +348,7 @@ class GameEngine:
                             self.state = GameState.PLAYING
                         else:  # Retour menu
                             self.state = GameState.MENU
-                    elif event.button == 7:  # Start = reprendre directement
+                    elif self._is_pause_button(event.button):  # Start = reprendre directement
                         self.state = GameState.PLAYING
                 elif self.state == GameState.GAME_OVER:
                     # N'importe quel bouton après les 2 premières secondes
@@ -315,7 +458,7 @@ class GameEngine:
             if is_double_jump:
                 self.audio.play(SoundType.DOUBLE_JUMP)
                 self.particles.spawn_double_jump(
-                    self.ball.x, self.ball.y, self.ball.radius
+                    self.ball.x, self.ball.y, self.ball.visual_radius
                 )
             elif can_jump and not will_be_double:
                 # Saut simple effectué
@@ -329,6 +472,7 @@ class GameEngine:
             self.spawn_timer = 0
             self.heart_spawn_timer = 0
             self.enemies_defeated = 0
+            self.rage = 0
 
     def _start_game(self):
         """Démarre le jeu avec la couleur sélectionnée."""
@@ -340,6 +484,7 @@ class GameEngine:
         self.spawn_timer = 0
         self.heart_spawn_timer = 0
         self.enemies_defeated = 0  # Reset le compteur
+        self.rage = 0
         self.current_level = 1  # Reset le niveau
         self.state = GameState.PLAYING
 
@@ -354,10 +499,10 @@ class GameEngine:
         self.ball.energy_usage_timer = 0  # Reset le timer
 
         # Position de départ du missile (à côté de la boule)
-        offset_x = (self.ball.radius + self.config.MISSILE_WIDTH / 2) * direction
+        offset_x = (self.ball.half_w + self.config.MISSILE_WIDTH / 2) * direction
         offset_y = 0
         if direction_y != 0:
-            offset_y = (self.ball.radius + self.config.MISSILE_HEIGHT / 2) * direction_y
+            offset_y = (self.ball.half_h + self.config.MISSILE_HEIGHT / 2) * direction_y
 
         missile = Missile(
             x=self.ball.x + offset_x,
@@ -368,22 +513,22 @@ class GameEngine:
         )
         self.missiles.append(missile)
 
-    def _fire_charged_missile(self, direction: int, direction_y: int = 0):
-        """Tire un missile chargé."""
-        # Consommer l'énergie au moment du tir (pas pendant la charge)
-        # Si énergie >= 50%, coûte 50%. Sinon, consomme toute l'énergie restante
-        if self.ball.energy >= self.config.CHARGED_MISSILE_COST:
-            self.ball.energy -= self.config.CHARGED_MISSILE_COST
-        else:
-            # Si moins de 50%, vide toute l'énergie
-            self.ball.energy = 0
-        self.ball.energy_usage_timer = 0  # Reset le timer
+    def _add_rage(self, amount: float):
+        """Augmente la rage (0 à 100)."""
+        self.rage = max(0.0, min(100.0, self.rage + amount))
 
-        # Position de départ du missile chargé
-        offset_x = (self.ball.radius + self.config.CHARGED_MISSILE_WIDTH / 2) * direction
+    def _fire_storm_attack(self, direction: int, direction_y: int = 0):
+        """Tire la super attaque en consommant la rage."""
+        if self.rage < self.config.RAGE_SUPER_COST:
+            return
+
+        self.rage -= self.config.RAGE_SUPER_COST
+
+        # Position de départ de l'attaque orageuse
+        offset_x = (self.ball.half_w + self.config.CHARGED_MISSILE_WIDTH / 2) * direction
         offset_y = 0
         if direction_y != 0:
-            offset_y = (self.ball.radius + self.config.CHARGED_MISSILE_HEIGHT / 2) * direction_y
+            offset_y = (self.ball.half_h + self.config.CHARGED_MISSILE_HEIGHT / 2) * direction_y
 
         missile = Missile(
             x=self.ball.x + offset_x,
@@ -397,7 +542,7 @@ class GameEngine:
             charged=True
         )
         self.missiles.append(missile)
-        self.audio.play(SoundType.JUMP, 1.0)  # Son de tir
+        self.audio.play(SoundType.DOUBLE_JUMP, 1.0)
 
     def handle_input(self):
         """Gère les entrées clavier et manette continues."""
@@ -410,6 +555,7 @@ class GameEngine:
         joy_down = False
         joy_float = False
         joy_fire = False
+        joy_super = False
 
         if self.joystick:
             # Stick analogique gauche (axe 0 = horizontal, axe 1 = vertical)
@@ -442,6 +588,8 @@ class GameEngine:
                 joy_float = True
             if self.joystick.get_button(2):  # X
                 joy_fire = True
+            if self.joystick.get_button(3):  # Y
+                joy_super = True
 
         # Direction de visée verticale
         if keys[pygame.K_UP] or keys[pygame.K_w] or joy_up:
@@ -459,29 +607,18 @@ class GameEngine:
         if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT] or joy_float:
             self.ball.start_floating()
 
-        # Espace maintenu ou bouton manette : tir automatique OU charge
+        # Tir normal
         if keys[pygame.K_SPACE] or joy_fire:
-            self.space_key_hold_timer += 1
+            if self.fire_cooldown <= 0:
+                self._fire_missile(self.ball.facing_direction, self.ball.aim_direction_y)
+                self.fire_cooldown = 10
 
-            # Si maintenu assez longtemps (30 frames = 0.5s), commencer la charge
-            if self.space_key_hold_timer >= 30 and not self.missile_charging:
-                self.missile_charging = True
-                self.missile_charge_timer = 0
-                self.was_grounded_during_charge = self.ball.on_ground
-                self.fire_cooldown = 0  # Reset cooldown
-            # Sinon, tir automatique rapide
-            elif not self.missile_charging and self.space_key_hold_timer < 30:
-                if self.fire_cooldown <= 0:
-                    self._fire_missile(self.ball.facing_direction, self.ball.aim_direction_y)
-                    self.fire_cooldown = 15
-        else:
-            # F relâché
-            if self.missile_charging and self.missile_charge_timer >= self.config.CHARGED_MISSILE_CHARGE_TIME:
-                # Tirer le missile chargé
-                self._fire_charged_missile(self.ball.facing_direction, self.ball.aim_direction_y)
-            self.missile_charging = False
-            self.missile_charge_timer = 0
-            self.space_key_hold_timer = 0
+        # Super attaque (input de déclenchement, pas en maintien)
+        super_pressed = keys[pygame.K_c] or joy_super
+        if super_pressed and not self.super_button_was_pressed and self.super_cooldown <= 0:
+            self._fire_storm_attack(self.ball.facing_direction, self.ball.aim_direction_y)
+            self.super_cooldown = 20
+        self.super_button_was_pressed = super_pressed
 
     def update(self):
         """Met à jour l'état du jeu."""
@@ -495,10 +632,11 @@ class GameEngine:
         if self.fire_cooldown > 0:
             self.fire_cooldown -= 1
 
-        # Gérer la charge du missile (la charge elle-même ne consomme pas d'énergie)
-        if self.missile_charging:
-            self.missile_charge_timer += 1
-            # La charge ne consomme PAS d'énergie, seul le tir final en consommera
+        if self.super_cooldown > 0:
+            self.super_cooldown -= 1
+
+        # Rage max: boost vitesse + immunité collision
+        self.ball.rage_boost_active = self.rage >= 100
 
         # Mettre à jour les obstacles (plateformes mobiles)
         for obs in self.obstacles:
@@ -544,6 +682,15 @@ class GameEngine:
                     missile.y + missile.height / 2
                 )
             missile.update(self.config)
+
+            if self._is_hitting_secret_wall(missile):
+                self.secret_hole_open = True
+                self.particles.spawn_explosion(
+                    self.config.WALL_THICKNESS if self.secret_side == -1 else self.config.PLAY_AREA_WIDTH - self.config.WALL_THICKNESS,
+                    self.secret_hole_y,
+                    1.2
+                )
+                self.audio.play(SoundType.BALL_COLLISION, 0.7)
 
             # Vérifier collision avec obstacles
             for obstacle in self.obstacles:
@@ -591,14 +738,14 @@ class GameEngine:
                             )
 
                     # Si collision directe, créer une explosion MAIS ne pas détruire le missile chargé
-                    if missile.check_collision(ai_ball.x, ai_ball.y, ai_ball.radius):
+                    if missile.check_collision(ai_ball.x, ai_ball.y, ai_ball.half_w, ai_ball.half_h):
                         # Grande explosion mais le missile continue !
                         self.particles.spawn_explosion(explosion_x, explosion_y, 3.0)
                         self.audio.play(SoundType.BALL_COLLISION, 1.0)
             else:
                 # Missile normal - réduit les HP
                 for ai_ball in self.ai_balls[:]:
-                    if missile.check_collision(ai_ball.x, ai_ball.y, ai_ball.radius):
+                    if missile.check_collision(ai_ball.x, ai_ball.y, ai_ball.half_w, ai_ball.half_h):
                         # Réduire les HP
                         ai_ball.hp -= 1
                         ai_ball.update_size()  # Mettre à jour la couleur selon les nouveaux HP
@@ -621,6 +768,7 @@ class GameEngine:
                                 ai_ball.x, ai_ball.y, 0, 0, 2.0
                             )
                             self.audio.play(SoundType.BALL_COLLISION, 0.4)
+                        self._add_rage(self.config.RAGE_GAIN_PER_HIT)
                         break
 
         # Retirer les ennemis et missiles touchés
@@ -633,12 +781,12 @@ class GameEngine:
                 self.missiles.remove(missile)
 
         # Activer la porte si assez d'ennemis vaincus
-        if self.enemies_defeated >= self.config.ENEMIES_TO_WIN:
+        if not self.in_secret_room and self.enemies_defeated >= self.config.ENEMIES_TO_WIN:
             self.door.active = True
 
         # Spawn d'ennemis selon le niveau actuel
         enemy_max_for_level = min(3 + self.current_level, 6)  # 4 pour niveau 1, 5 pour niveau 2, 6 pour 3+
-        if len(self.ai_balls) < enemy_max_for_level:
+        if not self.in_secret_room and len(self.ai_balls) < enemy_max_for_level:
             self.spawn_timer += 1
             if self.spawn_timer >= self.config.ENEMY_SPAWN_INTERVAL:
                 self.spawn_timer = 0
@@ -650,24 +798,30 @@ class GameEngine:
                 if hp == 3:
                     ball_radius = self.config.AI_BALL_RADIUS_3HP
                     color = self.config.AI_BALL_COLOR_3HP
+                    hitbox_w, hitbox_h = self.config.ENEMY_HITBOX_SIZES[3]
                 elif hp == 2:
                     ball_radius = self.config.AI_BALL_RADIUS_2HP
                     color = self.config.AI_BALL_COLOR_2HP
+                    hitbox_w, hitbox_h = self.config.ENEMY_HITBOX_SIZES[2]
                 else:
                     ball_radius = self.config.AI_BALL_RADIUS_1HP
                     color = self.config.AI_BALL_COLOR_1HP
+                    hitbox_w, hitbox_h = self.config.ENEMY_HITBOX_SIZES[1]
 
-                margin = ball_radius + 10
+                margin = hitbox_w / 2 + 10
                 new_enemy = AIBall(
-                    x=random.uniform(wall + margin, self.config.WINDOW_WIDTH - wall - margin),
-                    y=wall + margin,
+                    x=random.uniform(wall + margin, self.config.PLAY_AREA_WIDTH - wall - margin),
+                    y=wall + hitbox_h / 2 + 10,
                     radius=ball_radius,
+                    hitbox_width=hitbox_w,
+                    hitbox_height=hitbox_h,
                     vx=random.uniform(-2, 2),
                     vy=0,
                     color=color,
                     hp=hp,
                     max_hp=hp
                 )
+                new_enemy.facing_direction = 1 if new_enemy.vx >= 0 else -1
                 self.ai_balls.append(new_enemy)
 
         # Mettre à jour les boules IA et les faire tirer
@@ -678,13 +832,13 @@ class GameEngine:
             ai_ball.shoot_timer += 1
             if ai_ball.shoot_timer >= random.randint(120, 240):  # Tir toutes les 2-4 secondes
                 ai_ball.shoot_timer = 0
-                # Tirer à gauche et à droite
+                # Tirer dans la direction actuelle de l'ennemi
                 bullet_speed = 4
                 self.enemy_bullets.append(EnemyBullet(
-                    x=ai_ball.x, y=ai_ball.y, vx=-bullet_speed, vy=0
-                ))
-                self.enemy_bullets.append(EnemyBullet(
-                    x=ai_ball.x, y=ai_ball.y, vx=bullet_speed, vy=0
+                    x=ai_ball.x,
+                    y=ai_ball.y,
+                    vx=bullet_speed * ai_ball.facing_direction,
+                    vy=0
                 ))
 
         # Mettre à jour les bulles ennemies
@@ -740,8 +894,8 @@ class GameEngine:
         # Collision bulles ennemies avec joueur
         bullets_to_remove = []
         for bullet in self.enemy_bullets:
-            if bullet.check_collision(self.ball.x, self.ball.y, self.ball.radius):
-                if self.ball.invincible_timer <= 0:
+            if bullet.check_collision(self.ball.x, self.ball.y, self.ball.half_w, self.ball.half_h):
+                if self.ball.invincible_timer <= 0 and not self.ball.rage_boost_active:
                     # Perte d'une vie
                     self.ball.lives -= 1
                     self.ball.invincible_timer = 90  # 1.5 secondes d'invincibilité
@@ -758,12 +912,12 @@ class GameEngine:
                 self.enemy_bullets.remove(bullet)
 
         # Spawn de coeurs si < 5 vies
-        if self.ball.lives < self.ball.max_lives:
+        if not self.in_secret_room and self.ball.lives < self.ball.max_lives:
             self.heart_spawn_timer += 1
             if self.heart_spawn_timer >= 300:  # Toutes les 5 secondes
                 self.heart_spawn_timer = 0
                 wall = self.config.WALL_THICKNESS
-                heart_x = random.uniform(wall + 50, self.config.WINDOW_WIDTH - wall - 50)
+                heart_x = random.uniform(wall + 50, self.config.PLAY_AREA_WIDTH - wall - 50)
                 self.heart_pickups.append(HeartPickup(x=heart_x, y=wall + 20))
 
         # Mettre à jour les coeurs
@@ -773,7 +927,7 @@ class GameEngine:
         # Collision coeurs avec joueur
         hearts_to_remove = []
         for heart in self.heart_pickups:
-            if heart.check_collision(self.ball.x, self.ball.y, self.ball.radius):
+            if heart.check_collision(self.ball.x, self.ball.y, self.ball.half_w, self.ball.half_h):
                 if self.ball.lives < self.ball.max_lives:
                     self.ball.lives += 1
                     self.audio.play(SoundType.DOUBLE_JUMP, 0.6)  # Son joyeux
@@ -789,9 +943,9 @@ class GameEngine:
         # Collisions entre boules IA
         for i, ball1 in enumerate(self.ai_balls):
             for ball2 in self.ai_balls[i + 1:]:
-                result = self.physics.check_ball_collision(
-                    ball1.x, ball1.y, ball1.radius, ball1.vx, ball1.vy, ball1.mass,
-                    ball2.x, ball2.y, ball2.radius, ball2.vx, ball2.vy, ball2.mass
+                result = self.physics.check_ellipse_collision(
+                    ball1.x, ball1.y, ball1.half_w, ball1.half_h, ball1.vx, ball1.vy, ball1.mass,
+                    ball2.x, ball2.y, ball2.half_w, ball2.half_h, ball2.vx, ball2.vy, ball2.mass
                 )
                 if result[8]:  # Collision occurred
                     ball1.x, ball1.y, ball1.vx, ball1.vy = result[0:4]
@@ -810,15 +964,20 @@ class GameEngine:
             # Calculer la distance avant collision
             dx = ai_ball.x - self.ball.x
             dy = ai_ball.y - self.ball.y
-            distance = (dx * dx + dy * dy) ** 0.5
+            nx = dx / max(self.ball.half_w + ai_ball.half_w, 1e-6)
+            ny = dy / max(self.ball.half_h + ai_ball.half_h, 1e-6)
+            distance_norm = nx * nx + ny * ny
 
             # Vérifier s'il y a collision
-            if distance < self.ball.radius + ai_ball.radius:
+            if distance_norm < 1.0:
                 # Sauvegarder l'ancienne vitesse Y du joueur pour détecter le saut
                 old_ball_vy = self.ball.vy
 
                 # Détection directionnelle: saut sur la tête si le joueur tombe (vy > 2) et vient d'en haut
-                jumping_on_head = old_ball_vy > 2 and self.ball.y < ai_ball.y
+                jumping_on_head = (
+                    old_ball_vy > 2 and
+                    (self.ball.y + self.ball.half_h * 0.35) < (ai_ball.y - ai_ball.half_h * 0.15)
+                )
 
                 if jumping_on_head:
                     # Saut sur la tête: retirer 1 HP à l'ennemi
@@ -833,6 +992,7 @@ class GameEngine:
                         ai_ball.x, ai_ball.y, 0, 0, 3.0
                     )
                     self.audio.play(SoundType.BALL_COLLISION, 0.6)
+                    self._add_rage(self.config.RAGE_GAIN_PER_HIT)
 
                     # Si HP à 0, détruire l'ennemi
                     if ai_ball.hp <= 0:
@@ -845,7 +1005,7 @@ class GameEngine:
                         self.audio.play(SoundType.BALL_COLLISION, 0.8)
                 else:
                     # Collision latérale: le joueur perd une vie si pas invincible
-                    if self.ball.invincible_timer <= 0:
+                    if self.ball.invincible_timer <= 0 and not self.ball.rage_boost_active:
                         self.ball.lives -= 1
                         self.ball.invincible_timer = 90  # 1.5 secondes d'invincibilité
                         self.audio.play(SoundType.LIFE_LOST, 0.8)
@@ -854,10 +1014,10 @@ class GameEngine:
                         )
 
                     # Appliquer la physique normale de collision
-                    result = self.physics.check_ball_collision(
-                        self.ball.x, self.ball.y, self.ball.radius,
-                        self.ball.vx, self.ball.vy, self.ball.radius ** 2,
-                        ai_ball.x, ai_ball.y, ai_ball.radius,
+                    result = self.physics.check_ellipse_collision(
+                        self.ball.x, self.ball.y, self.ball.half_w, self.ball.half_h,
+                        self.ball.vx, self.ball.vy, self.ball.half_w * self.ball.half_h,
+                        ai_ball.x, ai_ball.y, ai_ball.half_w, ai_ball.half_h,
                         ai_ball.vx, ai_ball.vy, ai_ball.mass
                     )
                     if result[8]:  # Collision occurred
@@ -875,7 +1035,9 @@ class GameEngine:
                 self.ai_balls.remove(ball)
 
         # Vérifier collision avec la porte
-        if self.door.check_collision(self.ball.x, self.ball.y, self.ball.radius):
+        if self._is_player_on_secret_hole():
+            self._enter_secret_room()
+        elif self.door.check_collision(self.ball.x, self.ball.y, self.ball.half_w, self.ball.half_h):
             # Passer au niveau suivant
             self.current_level += 1
             self._create_level()
@@ -888,6 +1050,13 @@ class GameEngine:
             # Jouer un son de victoire
             self.audio.play(SoundType.DOUBLE_JUMP, 1.0)
 
+        if self.in_secret_room and not self.ai_balls and not self.secret_reward_claimed:
+            self.secret_reward_claimed = True
+            self.ball.max_lives += 1
+            self.ball.lives += 1
+            self.audio.play(SoundType.DOUBLE_JUMP, 1.0)
+            self._exit_secret_room()
+
         # Mettre à jour les particules
         self.particles.update()
 
@@ -895,6 +1064,7 @@ class GameEngine:
         """Dessine tous les éléments du jeu."""
         self.renderer.clear()
         self.renderer.draw_walls()
+        self.renderer.draw_secret_hole(self.secret_side, self.secret_hole_y, self.secret_hole_open)
         self.renderer.draw_door(self.door)
         self.renderer.draw_obstacles(self.obstacles)
         self.renderer.draw_ai_balls(self.ai_balls)
@@ -902,9 +1072,8 @@ class GameEngine:
         self.renderer.draw_heart_pickups(self.heart_pickups)
         self.renderer.draw_missiles(self.missiles)
         self.renderer.draw_particles(self.particles)
-        charge_percent = self.missile_charge_timer / self.config.CHARGED_MISSILE_CHARGE_TIME if self.missile_charging else 0.0
-        self.renderer.draw_ball(self.ball, self.missile_charging, charge_percent)
-        self.renderer.draw_hud(self.ball, len(self.ai_balls), self.missile_charging, self.missile_charge_timer, self.enemies_defeated, self.current_level)
+        self.renderer.draw_ball(self.ball, False, 0.0)
+        self.renderer.draw_hud(self.ball, len(self.ai_balls), self.enemies_defeated, self.current_level, self.rage)
         pygame.display.flip()
 
     def render_pause(self):
@@ -912,6 +1081,7 @@ class GameEngine:
         # Dessiner le jeu en arrière-plan
         self.renderer.clear()
         self.renderer.draw_walls()
+        self.renderer.draw_secret_hole(self.secret_side, self.secret_hole_y, self.secret_hole_open)
         self.renderer.draw_door(self.door)
         self.renderer.draw_obstacles(self.obstacles)
         self.renderer.draw_ai_balls(self.ai_balls)
@@ -919,9 +1089,8 @@ class GameEngine:
         self.renderer.draw_heart_pickups(self.heart_pickups)
         self.renderer.draw_missiles(self.missiles)
         self.renderer.draw_particles(self.particles)
-        charge_percent = self.missile_charge_timer / self.config.CHARGED_MISSILE_CHARGE_TIME if self.missile_charging else 0.0
-        self.renderer.draw_ball(self.ball, self.missile_charging, charge_percent)
-        self.renderer.draw_hud(self.ball, len(self.ai_balls), self.missile_charging, self.missile_charge_timer, self.enemies_defeated, self.current_level)
+        self.renderer.draw_ball(self.ball, False, 0.0)
+        self.renderer.draw_hud(self.ball, len(self.ai_balls), self.enemies_defeated, self.current_level, self.rage)
 
         # Overlay semi-transparent
         overlay = pygame.Surface((self.config.WINDOW_WIDTH, self.config.WINDOW_HEIGHT))
